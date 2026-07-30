@@ -460,3 +460,17 @@ def test_schedule_reports_kelvin_in_summer_and_grams_in_winter() -> None:
         hours = (result.schedule.best_end - result.schedule.best_start).total_seconds() / 3600
         assert hours <= 3
         assert result.schedule.best_delta_k < 15.0
+
+
+def test_disabled_rules_are_actually_skipped() -> None:
+    """The coordinator passes this through from the options; keyword-only."""
+    state = _world(outdoor=OutdoorState.create(15.0, 60.0))
+
+    enabled = evaluate(state, EngineMemory())
+    assert "night_flush" in {rec.rule_id for rec in enabled.recommendations}
+
+    disabled = evaluate(state, EngineMemory(), disabled_rules=["night_flush"])
+    assert "night_flush" not in {rec.rule_id for rec in disabled.recommendations}
+    # Everything else keeps working.
+    assert disabled.diagnostics["rule_errors"] == {}
+    assert len(disabled.recommendations) >= 1

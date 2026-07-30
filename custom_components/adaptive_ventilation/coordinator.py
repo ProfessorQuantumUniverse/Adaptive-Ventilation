@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import datetime, timedelta
+from functools import partial
 import logging
 from typing import Any
 
@@ -211,8 +212,14 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
         self.world = world
         self._expire_purges(world.now)
 
+        # partial, not positional args: disabled_rules is keyword-only.
         result = await self.hass.async_add_executor_job(
-            evaluate, world, self.memory, self.config.options.get(CONF_DISABLED_RULES, ())
+            partial(
+                evaluate,
+                world,
+                self.memory,
+                disabled_rules=self.config.options.get(CONF_DISABLED_RULES, ()),
+            )
         )
 
         await self._fire_recommendation_events(result)

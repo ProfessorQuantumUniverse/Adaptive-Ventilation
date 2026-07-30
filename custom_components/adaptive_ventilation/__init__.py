@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import AdaptiveVentilationConfigEntry, AdaptiveVentilationCoordinator
+from .devices import async_register_devices
 from .panel import async_register_panel, async_unregister_panel
 from .services import async_setup_services, async_unload_services
 
@@ -22,6 +23,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: AdaptiveVentilationConfi
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+    # Before the platforms, so a window can nest under its room no matter which
+    # platform gets scheduled first.
+    async_register_devices(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     await async_register_panel(hass)
