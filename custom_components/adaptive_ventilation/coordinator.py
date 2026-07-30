@@ -186,7 +186,9 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
 
     async def async_shutdown(self) -> None:
         self._unsubscribe()
-        await self._debouncer.async_shutdown()
+        # Debouncer.async_shutdown is a @callback, not a coroutine - awaiting it
+        # raised TypeError and made unloading the config entry fail.
+        self._debouncer.async_shutdown()
         await self.async_persist()
         await super().async_shutdown()
 

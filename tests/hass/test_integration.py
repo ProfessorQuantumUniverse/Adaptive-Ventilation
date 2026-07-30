@@ -222,7 +222,8 @@ async def test_setup_creates_the_expected_entities(hass: HomeAssistant) -> None:
     assert hass.states.get("binary_sensor.flat_action_required") is not None
     assert hass.states.get("sensor.living_room_absolute_humidity") is not None
     assert hass.states.get("sensor.living_south_recommendation") is not None
-    assert hass.states.get("text.flat_display_line1") is not None
+    # "Display line 1" slugifies with an underscore before the digit.
+    assert hass.states.get("text.flat_display_line_1") is not None
 
 
 async def test_night_flush_is_recommended_when_it_is_cooler_outside(
@@ -298,4 +299,7 @@ async def test_panel_websocket_returns_data(hass: HomeAssistant, hass_ws_client)
     assert response["success"]
     assert response["result"]["ready"] is True
     assert response["result"]["rooms"][0]["name"] == "Living room"
-    assert response["result"]["schedule"]["slots"]
+    # No weather entity is configured here, so there is genuinely no 24 h plan;
+    # the key has to be present and empty rather than missing.
+    assert response["result"]["schedule"]["slots"] == []
+    assert response["result"]["schedule"]["summary_key"] == "no_forecast"

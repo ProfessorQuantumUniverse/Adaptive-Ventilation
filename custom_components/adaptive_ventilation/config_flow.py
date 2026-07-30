@@ -155,15 +155,18 @@ def _binary(device_class: str | list[str] | None = None) -> EntitySelector:
 def _number(
     minimum: float, maximum: float, step: float = 1.0, unit: str | None = None
 ) -> NumberSelector:
-    return NumberSelector(
-        NumberSelectorConfig(
-            min=minimum,
-            max=maximum,
-            step=step,
-            unit_of_measurement=unit,
-            mode=NumberSelectorMode.BOX,
-        )
-    )
+    # unit_of_measurement must be a string when present, so leave the key out
+    # entirely for the unitless fields (g-value, counts, factors) rather than
+    # passing None - voluptuous rejects that and the whole form fails.
+    config: dict[str, Any] = {
+        "min": minimum,
+        "max": maximum,
+        "step": step,
+        "mode": NumberSelectorMode.BOX,
+    }
+    if unit is not None:
+        config["unit_of_measurement"] = unit
+    return NumberSelector(NumberSelectorConfig(**config))
 
 
 def _slider(minimum: float, maximum: float, step: float = 1.0) -> NumberSelector:

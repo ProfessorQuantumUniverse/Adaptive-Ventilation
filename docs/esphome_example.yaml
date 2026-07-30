@@ -49,13 +49,13 @@ font:
 text_sensor:
   - platform: homeassistant
     id: av_line1
-    entity_id: text.adaptive_ventilation_display_line1
+    entity_id: text.adaptive_ventilation_display_line_1
   - platform: homeassistant
     id: av_line2
-    entity_id: text.adaptive_ventilation_display_line2
+    entity_id: text.adaptive_ventilation_display_line_2
   - platform: homeassistant
     id: av_line3
-    entity_id: text.adaptive_ventilation_display_line3
+    entity_id: text.adaptive_ventilation_display_line_3
   - platform: homeassistant
     id: av_status
     entity_id: sensor.adaptive_ventilation_status

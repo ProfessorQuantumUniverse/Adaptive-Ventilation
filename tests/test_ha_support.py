@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
+import voluptuous as vol
 
 from adaptive_ventilation import config_flow, messages, presentation, storage
 from adaptive_ventilation.calibration import (
@@ -425,3 +427,65 @@ def test_preferences_accept_a_string_clock() -> None:
     # And the comparison it exists for actually works.
     assert prefs.in_quiet_hours(NOW.replace(hour=1))
     assert not prefs.in_quiet_hours(NOW.replace(hour=12))
+
+
+# --------------------------------------------------------------------------
+# Config flow schemas
+# --------------------------------------------------------------------------
+
+
+def test_every_options_step_schema_validates_its_own_defaults() -> None:
+    """A unitless number selector used to reject the whole form.
+
+    ``unit_of_measurement=None`` is not a valid NumberSelectorConfig, so any
+    step containing a unitless field (g-value, counts, factors) failed
+    validation. Three of the five steps were affected and none were covered.
+    """
+    import asyncio
+    import types
+
+    from adaptive_ventilation import config_flow as cf
+
+    captured: dict[str, Any] = {}
+
+    class Harness(cf.AdaptiveVentilationOptionsFlow):
+        def __init__(self) -> None:
+            self._entry = types.SimpleNamespace(options={}, entry_id="x")
+            self.hass = types.SimpleNamespace(
+                services=types.SimpleNamespace(
+                    async_services=lambda: {"notify": {"mobile_app_phone": None}}
+                )
+            )
+
+        @property
+        def config_entry(self):  # type: ignore[override]
+            return self._entry
+
+        def async_show_form(self, *, step_id, data_schema, **kwargs):
+            captured[step_id] = data_schema
+            return {"step_id": step_id}
+
+    flow = Harness()
+    steps = ("sources", "building", "notifications", "weights", "thresholds")
+    for step in steps:
+        asyncio.run(getattr(flow, f"async_step_{step}")())
+
+    assert set(captured) == set(steps)
+    for schema in captured.values():
+        defaults = {}
+        for key in schema.schema:
+            default = getattr(key, "default", None)
+            if default is None or default is vol.UNDEFINED:
+                continue
+            defaults[str(key)] = default()
+        schema(defaults)  # raises if the step is unusable
+
+
+def test_unitless_number_selector_is_accepted() -> None:
+    from adaptive_ventilation import config_flow as cf
+
+    schema = vol.Schema({vol.Optional("g_value", default=0.6): cf._number(0.1, 0.9, 0.05)})
+    assert schema({"g_value": 0.6}) == {"g_value": 0.6}
+
+    with_unit = vol.Schema({vol.Optional("v", default=1.0): cf._number(0, 10, 1, "m³")})
+    assert with_unit({"v": 2.0}) == {"v": 2.0}
