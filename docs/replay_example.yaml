@@ -1,7 +1,7 @@
 # Example mapping for scripts/replay.py.
 #
 # It tells the replay which recorded entity is which. Everything except the
-# outdoor temperature is optional - the engine degrades gracefully, which is
+# outdoor temperature is optional, the engine degrades gracefully, which is
 # exactly what you want to observe while tuning.
 #
 #   python scripts/replay.py --csv history.csv --map docs/replay_example.yaml -v
