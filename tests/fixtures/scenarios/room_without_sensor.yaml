@@ -1,0 +1,78 @@
+name: room_without_sensor
+description: >
+  The attic has no sensor - its temperature is a reference-room offset with
+  confidence 0.6. The recommendation is shown, but nothing is pushed for it.
+
+now: "2025-07-16T23:00:00+02:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 3
+  top_floor: true
+
+outdoor:
+  temperature: 17.0
+  humidity: 70
+  wind_speed: 1.2
+  cloud_coverage: 30
+  pressure: 1016
+
+sun:
+  elevation: -10
+  azimuth: 315
+
+forecast:
+  start: "2025-07-16T23:00:00+02:00"
+  humidity: 72
+  temperatures:
+    [17, 16.5, 16, 15.6, 15.3, 15.2, 16, 18, 21, 24, 27, 29,
+     31, 32, 32, 31, 29, 26, 23, 21, 19, 18, 17, 16.5,
+     16, 15.6, 15.3, 16, 18, 21]
+
+preferences:
+  # Outside the quiet hours, so the difference between the measured room
+  # (pushes) and the estimated room (silent) is actually observable.
+  quiet_hours_start: "23:30"
+
+rooms:
+  - id: bedroom
+    name: Bedroom
+    temperature: 25.0
+    humidity: 52
+    volume: 40
+    priority: 1
+    bedroom: true
+  - id: attic
+    name: Attic
+    temperature: 29.0
+    humidity: 45
+    volume: 35
+    priority: 4
+    top_floor: true
+    confidence: 0.6
+    estimation_method: reference_offset
+
+windows:
+  - id: bedroom_east
+    name: Bedroom east
+    room: bedroom
+    azimuth: 95
+    area: 1.5
+  - id: attic_west
+    name: Attic west
+    room: attic
+    azimuth: 270
+    area: 1.0
+
+expect:
+  global_state: night_flush
+  rules_present: [night_flush]
+  actions:
+    attic_west: [open_wide]
+    bedroom_east: [open_wide]
+  max_confidence:
+    attic_west: 0.6
+  silent_targets: [attic_west]
+  notify_rules: [night_flush]

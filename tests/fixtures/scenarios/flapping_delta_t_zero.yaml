@@ -1,0 +1,52 @@
+name: flapping_delta_t_zero
+description: >
+  Indoor and outdoor temperature are identical. The dead band around zero plus
+  the minimum dwell time have to keep the system completely still - a flapping
+  system is an uninstalled system. See test_anti_flapping for the loop.
+
+now: "2025-05-20T20:00:00+02:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 1
+
+outdoor:
+  temperature: 24.0
+  humidity: 55
+  wind_speed: 1.0
+  cloud_coverage: 40
+  pressure: 1015
+
+sun:
+  elevation: 6
+  azimuth: 290
+
+forecast:
+  start: "2025-05-20T20:00:00+02:00"
+  humidity: 58
+  temperatures:
+    [24, 23.9, 24, 24.1, 23.9, 24, 24.1, 24, 24.1, 23.9, 24, 24.1,
+     24, 23.9, 24.1, 24, 24, 24.1, 23.9, 24, 24, 24.1, 23.9, 24,
+     24.1, 24, 23.9, 24, 24.1, 24]
+
+rooms:
+  - id: living_room
+    name: Living room
+    temperature: 24.0
+    humidity: 50
+    volume: 60
+    priority: 1
+
+windows:
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 190
+    area: 2.2
+
+expect:
+  global_state_in: [idle, keep_closed]
+  rules_absent: [night_flush, keep_closed_hot]
+  no_notifications: true

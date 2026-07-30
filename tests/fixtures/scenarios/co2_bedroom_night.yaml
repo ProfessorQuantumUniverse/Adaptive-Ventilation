@@ -1,0 +1,59 @@
+name: co2_bedroom_night
+description: >
+  1400 ppm in the bedroom at 03:00, inside the quiet hours. The recommendation
+  exists and is visible in the panel, but nothing is pushed - only SAFETY
+  breaks the quiet hours.
+
+now: "2025-11-14T03:00:00+01:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 2
+
+outdoor:
+  temperature: 4.0
+  humidity: 90
+  wind_speed: 1.0
+  cloud_coverage: 90
+  pressure: 1010
+
+sun:
+  elevation: -35
+  azimuth: 5
+
+forecast:
+  start: "2025-11-14T03:00:00+01:00"
+  humidity: 90
+  temperatures:
+    [4, 3.5, 3, 3, 3.5, 5, 7, 9, 10, 11, 11, 10,
+     9, 8, 7, 6, 5.5, 5, 4.5, 4, 4, 3.5, 3, 3,
+     3.5, 5, 7, 9, 10, 11]
+
+rooms:
+  - id: bedroom
+    name: Bedroom
+    temperature: 19.0
+    humidity: 50
+    co2: 1400
+    volume: 36
+    priority: 1
+    bedroom: true
+    occupied: true
+
+windows:
+  - id: bedroom_east
+    name: Bedroom east
+    room: bedroom
+    azimuth: 95
+    area: 1.4
+
+expect:
+  global_state: air_quality
+  rules_present: [co2_high]
+  actions:
+    bedroom_east: [purge, cross_ventilate]
+  no_notifications: true
+  max_duration:
+    co2_high: 12

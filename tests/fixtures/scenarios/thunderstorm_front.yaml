@@ -1,0 +1,67 @@
+name: thunderstorm_front
+description: >
+  A cold front is about to drop the outdoor temperature by 9 K in two hours,
+  then it rains. Short, aggressive ventilation window with an expiry date.
+
+now: "2025-08-05T18:00:00+02:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 1
+
+outdoor:
+  temperature: 33.0
+  humidity: 38
+  wind_speed: 3.0
+  wind_bearing: 250
+  cloud_coverage: 45
+  pressure: 1006
+
+sun:
+  elevation: 22
+  azimuth: 265
+
+forecast:
+  start: "2025-08-05T18:00:00+02:00"
+  hours:
+    - {temperature: 33.0, humidity: 38, cloud_coverage: 45}
+    - {temperature: 32.0, humidity: 42, cloud_coverage: 70}
+    - {temperature: 24.0, humidity: 75, cloud_coverage: 95, precipitation: 0.2}
+    - {temperature: 21.0, humidity: 92, cloud_coverage: 100, precipitation: 4.0}
+    - {temperature: 20.0, humidity: 90, cloud_coverage: 95, precipitation: 1.2}
+    - {temperature: 19.0, humidity: 88, cloud_coverage: 80}
+    - {temperature: 18.5, humidity: 86, cloud_coverage: 60}
+    - {temperature: 18.0, humidity: 85, cloud_coverage: 40}
+    - {temperature: 17.5, humidity: 85, cloud_coverage: 30}
+    - {temperature: 17.0, humidity: 86, cloud_coverage: 20}
+    - {temperature: 17.0, humidity: 86, cloud_coverage: 20}
+    - {temperature: 18.0, humidity: 82, cloud_coverage: 20}
+    - {temperature: 21.0, humidity: 70, cloud_coverage: 20}
+    - {temperature: 24.0, humidity: 58, cloud_coverage: 20}
+    - {temperature: 26.0, humidity: 50, cloud_coverage: 20}
+    - {temperature: 27.0, humidity: 48, cloud_coverage: 20}
+
+rooms:
+  - id: living_room
+    name: Living room
+    temperature: 27.5
+    humidity: 45
+    volume: 60
+    priority: 1
+
+windows:
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 200
+    area: 2.4
+
+expect:
+  global_state: ventilate_now
+  rules_present: [thunderstorm_window]
+  actions:
+    living_south: [open_wide, cross_ventilate]
+  max_duration:
+    thunderstorm_window: 130

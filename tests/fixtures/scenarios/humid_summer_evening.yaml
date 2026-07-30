@@ -1,0 +1,55 @@
+name: humid_summer_evening
+description: >
+  21 C and 88 % RH outside against 25 C and 50 % inside. Cooler in degrees but
+  4 g/m3 wetter in absolute terms. Summer weighs this up instead of vetoing:
+  the recommendation still says open, but with visibly lower urgency.
+
+now: "2025-07-20T21:00:00+02:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 1
+
+outdoor:
+  temperature: 21.0
+  humidity: 88
+  wind_speed: 1.0
+  cloud_coverage: 80
+  pressure: 1008
+
+sun:
+  elevation: -5
+  azimuth: 300
+
+forecast:
+  start: "2025-07-20T21:00:00+02:00"
+  humidity: 90
+  temperatures:
+    [21, 20.5, 20, 19.6, 19.3, 19.1, 19, 19.5, 21, 23, 25, 26,
+     27, 27.5, 27, 26, 25, 24, 23, 22, 21.5, 21, 20.5, 20,
+     19.8, 19.5, 19.3, 20, 22, 24]
+
+rooms:
+  - id: living_room
+    name: Living room
+    temperature: 25.0
+    humidity: 50
+    volume: 60
+    priority: 1
+
+windows:
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 200
+    area: 2.4
+
+expect:
+  global_state: night_flush
+  rules_present: [night_flush]
+  actions:
+    living_south: [open_wide]
+  max_urgency:
+    night_flush: 70

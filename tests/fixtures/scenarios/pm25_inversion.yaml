@@ -1,0 +1,60 @@
+name: pm25_inversion
+description: >
+  New year's night: calm, cold, high pressure, 180 ug/m3 outside and clean air
+  inside. CO2 is elevated but the particulate veto wins - opening the window
+  would make the air measurably worse.
+
+now: "2026-01-01T00:30:00+01:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 2
+
+outdoor:
+  temperature: 1.0
+  humidity: 85
+  pm25: 180
+  pm10: 260
+  wind_speed: 0.4
+  cloud_coverage: 20
+  pressure: 1028
+
+sun:
+  elevation: -55
+  azimuth: 0
+
+forecast:
+  start: "2026-01-01T00:30:00+01:00"
+  humidity: 85
+  temperatures:
+    [1, 0.5, 0, -0.5, -1, -1, -1, -0.5, 0, 1, 2, 3,
+     3.5, 3.5, 3, 2, 1, 0.5, 0, 0, -0.5, -1, -1, -1,
+     -0.5, 0, 1, 2, 3, 3]
+
+rooms:
+  - id: living_room
+    name: Living room
+    temperature: 21.5
+    humidity: 42
+    co2: 1100
+    pm25: 8
+    volume: 60
+    priority: 1
+    occupied: true
+    heating: true
+
+windows:
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 190
+    area: 2.2
+
+expect:
+  global_state: keep_closed
+  rules_present: [outdoor_pm_spike]
+  rules_absent: [co2_high, winter_purge_schedule]
+  actions:
+    living_south: [keep_closed]

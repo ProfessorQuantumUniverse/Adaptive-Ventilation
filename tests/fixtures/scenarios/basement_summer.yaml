@@ -1,0 +1,66 @@
+name: basement_summer
+description: >
+  The classic mistake: airing out the cellar on a warm summer afternoon.
+  19 g/m3 outside meets 16 C walls - that is condensation, not drying.
+
+now: "2025-07-22T15:00:00+02:00"
+mode: auto
+presence: true
+
+building:
+  type: old_massive
+  floor: 0
+
+outdoor:
+  temperature: 28.0
+  humidity: 70
+  wind_speed: 2.0
+  cloud_coverage: 25
+  pressure: 1014
+
+sun:
+  elevation: 50
+  azimuth: 225
+
+forecast:
+  start: "2025-07-22T15:00:00+02:00"
+  humidity: 70
+  temperatures:
+    [28, 29, 29, 28, 26, 24, 22, 21, 20, 19, 18.5, 18,
+     18, 19, 22, 25, 27, 29, 30, 30, 29, 27, 24, 22,
+     20, 19, 18.5, 18, 19, 22]
+
+rooms:
+  - id: cellar
+    name: Cellar
+    temperature: 16.0
+    humidity: 75
+    volume: 45
+    priority: 6
+    basement: true
+  - id: living_room
+    name: Living room
+    temperature: 26.0
+    humidity: 50
+    volume: 60
+    priority: 1
+
+windows:
+  - id: cellar_north
+    name: Cellar north
+    room: cellar
+    azimuth: 0
+    area: 0.5
+    ground_floor: true
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 190
+    area: 2.2
+
+expect:
+  global_state: keep_closed
+  rules_present: [basement_summer_veto, keep_closed_hot]
+  actions:
+    cellar_north: [keep_closed]
+    cellar: [keep_closed]

@@ -1,0 +1,75 @@
+name: heatwave_35c_day
+description: >
+  Midday during a heatwave. 34 C outside, 27 C inside, sun on the south facade.
+  Everything stays shut and the external blind goes down before the peak.
+
+now: "2025-07-15T14:00:00+02:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 2
+  latitude: 50.11
+  longitude: 8.68
+
+outdoor:
+  temperature: 34.0
+  humidity: 35
+  pm25: 12
+  wind_speed: 2.0
+  wind_bearing: 220
+  cloud_coverage: 5
+  pressure: 1016
+
+sun:
+  elevation: 55
+  azimuth: 215
+
+forecast:
+  start: "2025-07-15T14:00:00+02:00"
+  humidity: 35
+  cloud_coverage: 5
+  temperatures:
+    [34, 35, 35, 34, 32, 29, 26, 24, 22, 21, 20, 19,
+     19, 20, 23, 27, 30, 33, 35, 36, 35, 33, 30, 27,
+     24, 22, 21, 20, 19, 19]
+
+rooms:
+  - id: living_room
+    name: Living room
+    temperature: 27.0
+    humidity: 45
+    volume: 60
+    priority: 1
+  - id: bedroom
+    name: Bedroom
+    temperature: 26.0
+    humidity: 48
+    volume: 40
+    priority: 2
+    bedroom: true
+
+windows:
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 200
+    area: 2.4
+    cover: cover.living_south
+    cover_position: 100
+    cover_external: true
+  - id: bedroom_east
+    name: Bedroom east
+    room: bedroom
+    azimuth: 95
+    area: 1.4
+
+expect:
+  global_state: heat_protection
+  rules_present: [keep_closed_hot, solar_shading]
+  rules_absent: [night_flush]
+  actions:
+    living_south: [keep_closed]
+    bedroom_east: [keep_closed]
+    "living_south:cover": [cover_down]

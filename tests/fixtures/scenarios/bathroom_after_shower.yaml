@@ -1,0 +1,73 @@
+name: bathroom_after_shower
+description: >
+  Moisture spike in the bathroom right after a shower. 19 g/m3 inside against
+  6 g/m3 outside - get it out before it spreads through the flat.
+
+now: "2025-03-10T07:15:00+01:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 1
+
+outdoor:
+  temperature: 6.0
+  humidity: 80
+  wind_speed: 2.0
+  cloud_coverage: 70
+  pressure: 1012
+
+sun:
+  elevation: 2
+  azimuth: 100
+
+forecast:
+  start: "2025-03-10T07:15:00+01:00"
+  humidity: 78
+  temperatures:
+    [6, 7, 8, 9, 10, 11, 12, 12, 11, 10, 9, 8,
+     7, 7, 6, 6, 5, 5, 5, 6, 7, 9, 10, 11,
+     12, 12, 11, 9, 8, 7]
+
+rooms:
+  - id: bathroom
+    name: Bathroom
+    temperature: 24.0
+    humidity: 88
+    volume: 12
+    priority: 2
+    moisture_source: true
+    heating: true
+  - id: living_room
+    name: Living room
+    temperature: 21.0
+    humidity: 45
+    volume: 60
+    priority: 1
+    heating: true
+
+windows:
+  - id: bathroom_north
+    name: Bathroom north
+    room: bathroom
+    azimuth: 10
+    area: 0.6
+    tilt_capable: true
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 190
+    area: 2.2
+
+memory:
+  last_purge:
+    bathroom: "2025-03-10T06:00:00+01:00"
+    living_room: "2025-03-10T06:00:00+01:00"
+
+expect:
+  global_state: air_quality
+  rules_present: [humidity_spike]
+  actions:
+    bathroom_north: [purge, cross_ventilate]
+  notify_rules: [humidity_spike]

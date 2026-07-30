@@ -1,0 +1,75 @@
+name: tropical_night_multiday
+description: >
+  Third night of a heatwave, the nights no longer cool down (T_min 22 C).
+  Night flushing alone cannot carry this any more - say so honestly instead of
+  pretending.
+
+now: "2025-08-12T23:00:00+02:00"
+mode: auto
+presence: true
+
+building:
+  type: old_massive
+  floor: 3
+  top_floor: true
+
+outdoor:
+  temperature: 24.0
+  humidity: 60
+  wind_speed: 0.8
+  cloud_coverage: 10
+  pressure: 1018
+
+sun:
+  elevation: -12
+  azimuth: 320
+
+forecast:
+  start: "2025-08-12T23:00:00+02:00"
+  humidity: 62
+  temperatures:
+    [24, 23.5, 23, 22.6, 22.3, 22.1, 22, 23, 26, 29, 32, 34,
+     36, 37, 37, 36, 34, 31, 28, 26, 25, 24, 23.5, 23,
+     22.8, 22.5, 22.3, 23, 26, 30]
+
+rooms:
+  - id: bedroom
+    name: Bedroom
+    temperature: 30.5
+    humidity: 52
+    volume: 40
+    priority: 1
+    bedroom: true
+    target_max: 25
+    fan: true
+  - id: living_room
+    name: Living room
+    temperature: 30.0
+    humidity: 50
+    volume: 60
+    priority: 3
+    target_max: 26
+
+windows:
+  - id: bedroom_east
+    name: Bedroom east
+    room: bedroom
+    azimuth: 95
+    area: 1.5
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 200
+    area: 2.4
+
+memory:
+  budget_history:
+    - {day: "2025-08-10", net_k: -1.8}
+    - {day: "2025-08-11", net_k: -2.4}
+
+expect:
+  global_state: night_flush
+  rules_present: [night_flush, tropical_night]
+  cooling_verdict: insufficient
+  actions:
+    bedroom_east: [open_wide, cross_ventilate]

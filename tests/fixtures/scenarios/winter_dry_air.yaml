@@ -1,0 +1,59 @@
+name: winter_dry_air
+description: >
+  -8 C outside, 20 % RH inside. Absolute humidity is already down at 3.7 g/m3.
+  The right advice here is to ventilate *less*, not more.
+
+now: "2025-02-02T10:00:00+01:00"
+mode: auto
+presence: true
+
+building:
+  type: new_insulated
+  floor: 2
+
+outdoor:
+  temperature: -8.0
+  humidity: 90
+  wind_speed: 1.0
+  cloud_coverage: 30
+  pressure: 1026
+
+sun:
+  elevation: 14
+  azimuth: 155
+
+forecast:
+  start: "2025-02-02T10:00:00+01:00"
+  humidity: 88
+  temperatures:
+    [-8, -6, -4, -3, -3, -4, -6, -8, -9, -10, -10, -11,
+     -11, -11, -10, -9, -8, -7, -6, -5, -4, -4, -5, -7,
+     -8, -9, -10, -10, -11, -11]
+
+rooms:
+  - id: living_room
+    name: Living room
+    temperature: 21.0
+    humidity: 20
+    co2: 620
+    volume: 60
+    priority: 1
+    heating: true
+
+windows:
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 190
+    area: 2.2
+
+memory:
+  last_purge:
+    living_room: "2025-02-02T09:00:00+01:00"
+
+expect:
+  rules_present: [dry_air]
+  rules_absent: [winter_purge_schedule, mold_risk]
+  actions:
+    living_room: [keep_closed]
+  no_notifications: true

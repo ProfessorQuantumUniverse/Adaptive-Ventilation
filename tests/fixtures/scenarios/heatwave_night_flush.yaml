@@ -1,0 +1,74 @@
+name: heatwave_night_flush
+description: >
+  22:00 after a hot day. 18 C outside, 27 C inside, dry air. This is the one
+  night window that decides how tomorrow feels.
+
+now: "2025-07-15T22:00:00+02:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 2
+
+outdoor:
+  temperature: 18.0
+  humidity: 65
+  pm25: 6
+  wind_speed: 1.5
+  wind_bearing: 270
+  cloud_coverage: 20
+  pressure: 1015
+
+sun:
+  elevation: -8
+  azimuth: 305
+
+forecast:
+  start: "2025-07-15T22:00:00+02:00"
+  humidity: 68
+  temperatures:
+    [18, 17.5, 17, 16.5, 16.2, 16, 16.5, 18, 21, 24, 27, 30,
+     32, 33, 33, 32, 30, 27, 24, 22, 20, 19, 18, 17.5,
+     17, 16.5, 16.2, 16, 16.5, 18]
+
+preferences:
+  # Deliberately later than the default so this scenario also proves that a
+  # night flush outside the quiet hours actually reaches the phone.
+  quiet_hours_start: "23:00"
+
+rooms:
+  - id: bedroom
+    name: Bedroom
+    temperature: 27.0
+    humidity: 50
+    volume: 40
+    priority: 1
+    bedroom: true
+  - id: living_room
+    name: Living room
+    temperature: 26.5
+    humidity: 50
+    volume: 60
+    priority: 3
+
+windows:
+  - id: bedroom_east
+    name: Bedroom east
+    room: bedroom
+    azimuth: 95
+    area: 1.5
+  - id: living_south
+    name: Living room south
+    room: living_room
+    azimuth: 200
+    area: 2.4
+
+expect:
+  global_state: night_flush
+  rules_present: [night_flush]
+  rules_absent: [keep_closed_hot, morning_close]
+  notify_rules: [night_flush]
+  actions:
+    bedroom_east: [open_wide, cross_ventilate]
+    living_south: [open_wide, cross_ventilate]

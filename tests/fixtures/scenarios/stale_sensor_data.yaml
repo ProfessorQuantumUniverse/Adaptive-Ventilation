@@ -1,0 +1,54 @@
+name: stale_sensor_data
+description: >
+  The outdoor sensors have not updated for an hour. Conditions would look
+  perfect for a night flush - the engine degrades instead of guessing.
+
+now: "2025-07-18T23:30:00+02:00"
+mode: auto
+presence: true
+
+building:
+  type: old_renovated
+  floor: 2
+
+outdoor:
+  temperature: 17.0
+  humidity: 65
+  wind_speed: 1.0
+  cloud_coverage: 20
+  pressure: 1014
+  stale: true
+
+sun:
+  elevation: -12
+  azimuth: 320
+
+forecast:
+  start: "2025-07-18T23:30:00+02:00"
+  humidity: 65
+  temperatures:
+    [17, 16.5, 16, 15.5, 15.2, 15, 15.5, 17, 20, 23, 26, 28,
+     30, 31, 31, 30, 28, 25, 22, 20, 18, 17, 16.5, 16,
+     15.5, 15.2, 15, 15.5, 17, 20]
+
+rooms:
+  - id: bedroom
+    name: Bedroom
+    temperature: 27.0
+    humidity: 50
+    volume: 40
+    priority: 1
+    bedroom: true
+
+windows:
+  - id: bedroom_east
+    name: Bedroom east
+    room: bedroom
+    azimuth: 95
+    area: 1.5
+
+expect:
+  global_state: unavailable_data
+  rules_present: [data_stale]
+  rules_absent: [night_flush]
+  no_notifications: true
