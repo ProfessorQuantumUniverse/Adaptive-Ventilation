@@ -11,5 +11,10 @@ pyyaml>=6.0
 # fcntl and unix sockets, so on Windows run `pytest -p no:homeassistant`.
 pytest-homeassistant-custom-component>=0.13
 
+# The sidebar panel means the integration depends on the frontend component,
+# which needs the hass_frontend package. Pin it to whatever your installed
+# Home Assistant pins - CI reads that out of the frontend manifest.
+home-assistant-frontend
+
 ruff>=0.6
 mypy>=1.11

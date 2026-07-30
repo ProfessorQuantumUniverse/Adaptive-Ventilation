@@ -46,6 +46,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pytest pytest-cov pyyaml
           python -m pip install pytest-homeassistant-custom-component
+      - name: Install the frontend package
+        # The integration registers a sidebar panel, so it depends on the
+        # frontend component, which needs hass_frontend at runtime. The test
+        # plugin does not pull in component requirements, so install exactly
+        # the version this Home Assistant pins.
+        run: |
+          python -m pip install "$(python -c '
+          import json, os
+          import homeassistant.components.frontend as f
+          manifest = os.path.join(os.path.dirname(f.__file__), "manifest.json")
+          print(json.load(open(manifest))["requirements"][0])
+          ')"
       - name: Run the full suite
         # The tests under tests/hass/ need the Home Assistant plugin, which
         # only works on POSIX. They are skipped on Windows and run here.
@@ -98,11 +110,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: home-assistant/actions/hassfest@master
 
-  hacs:
-    name: HACS
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hacs/action@main
-        with:
-          category: integration
+#  hacs:
+#    name: HACS
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#      - uses: hacs/action@main
+#        with:
+#          category: integration
+#

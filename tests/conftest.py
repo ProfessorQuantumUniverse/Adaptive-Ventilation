@@ -1,7 +1,13 @@
 """Pytest configuration.
 
-The engine tests import ``adaptive_ventilation.engine`` directly and never
-touch Home Assistant, so ``custom_components`` only needs to be on the path.
+The engine tests import ``adaptive_ventilation.engine`` and must work with no
+Home Assistant installed at all - that is the architectural promise the whole
+``engine/`` split exists for, and CI has a job that enforces it.
+
+Importing ``adaptive_ventilation.engine`` normally executes the package
+``__init__.py`` first, and that one *does* import Home Assistant. So the parent
+package is registered here as a bare namespace module: submodules resolve
+through its ``__path__``, but the integration's own setup code never runs.
 """
 
 from __future__ import annotations
@@ -9,12 +15,21 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import sys
+import types
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+COMPONENT = ROOT / "custom_components" / "adaptive_ventilation"
+
 if str(ROOT / "custom_components") not in sys.path:
     sys.path.insert(0, str(ROOT / "custom_components"))
+
+if "adaptive_ventilation" not in sys.modules:
+    _package = types.ModuleType("adaptive_ventilation")
+    _package.__path__ = [str(COMPONENT)]  # type: ignore[attr-defined]
+    _package.__doc__ = "Namespace stub - see the module docstring in tests/conftest.py."
+    sys.modules["adaptive_ventilation"] = _package
 
 from adaptive_ventilation.engine import (  # noqa: E402
     ForecastHour,
