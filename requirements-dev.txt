@@ -1,6 +1,6 @@
 # Development and CI dependencies.
 #
-# The engine itself needs nothing but the standard library - that is the point.
+# The engine itself needs nothing but the standard library, that is the point.
 # Everything here is for testing, linting and the replay script.
 
 pytest>=8.0
@@ -13,7 +13,7 @@ pytest-homeassistant-custom-component>=0.13
 
 # The sidebar panel means the integration depends on the frontend component,
 # which needs the hass_frontend package. Pin it to whatever your installed
-# Home Assistant pins - CI reads that out of the frontend manifest.
+# Home Assistant pins, CI reads that out of the frontend manifest.
 home-assistant-frontend
 
 ruff>=0.6
