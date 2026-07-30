@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.util import dt as dt_util
 
 from . import messages
@@ -57,7 +57,7 @@ class NotificationManager:
         self.hass = hass
         self.coordinator = coordinator
         self._sent: dict[str, SentNotification] = {}
-        self._listener_registered = False
+        self._unsubscribe_actions: CALLBACK_TYPE | None = None
         self._register_action_listener()
 
     # ------------------------------------------------------------------
@@ -196,10 +196,25 @@ class NotificationManager:
 
     @callback
     def _register_action_listener(self) -> None:
-        if self._listener_registered:
+        if self._unsubscribe_actions is not None:
             return
-        self.hass.bus.async_listen("mobile_app_notification_action", self._handle_action)
-        self._listener_registered = True
+        self._unsubscribe_actions = self.hass.bus.async_listen(
+            "mobile_app_notification_action", self._handle_action
+        )
+
+    @callback
+    def async_shutdown(self) -> None:
+        """Stop listening for notification button presses.
+
+        Dropping the unsubscribe callback used to leak one listener per config
+        entry reload - and every write to an option reloads the entry, which
+        includes every nudge of a tuning number entity. Each stale listener
+        kept answering button presses through a coordinator that had already
+        been shut down.
+        """
+        if self._unsubscribe_actions is not None:
+            self._unsubscribe_actions()
+            self._unsubscribe_actions = None
 
     async def _handle_action(self, event: Any) -> None:
         """React to the buttons on the notification."""

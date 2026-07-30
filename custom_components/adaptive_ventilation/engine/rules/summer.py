@@ -270,7 +270,13 @@ def tropical_night(ctx: EvaluationContext) -> Iterable[Recommendation]:
     """Be honest: night flushing alone will not carry this one."""
     state = ctx.state
     prefs = state.preferences
-    if not thermal.is_tropical_night(state.forecast, state.now, prefs.tropical_night_threshold):
+    if not thermal.is_tropical_night(
+        state.forecast,
+        state.now,
+        prefs.tropical_night_threshold,
+        latitude=state.building.latitude,
+        longitude=state.building.longitude,
+    ):
         return
     budget = ctx.cooling_budget
     night_min = min(

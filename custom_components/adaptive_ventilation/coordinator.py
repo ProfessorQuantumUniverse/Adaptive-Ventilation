@@ -73,7 +73,12 @@ from .storage import deserialize_learned, deserialize_memory, serialize_learned,
 
 _LOGGER = logging.getLogger(__name__)
 
+#: How long a fetched forecast is reused before asking the weather integration
+#: again.
 FORECAST_MAX_AGE = timedelta(minutes=20)
+#: How long a forecast may keep being served once refreshing it starts failing.
+#: Beyond this it is thrown away, which surfaces the ISSUE_NO_FORECAST repair.
+FORECAST_MAX_STALENESS = timedelta(hours=3)
 
 type AdaptiveVentilationConfigEntry = ConfigEntry["AdaptiveVentilationCoordinator"]
 
@@ -186,6 +191,8 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
 
     async def async_shutdown(self) -> None:
         self._unsubscribe()
+        if self._notifier is not None:
+            self._notifier.async_shutdown()
         # Debouncer.async_shutdown is a @callback, not a coroutine - awaiting it
         # raised TypeError and made unloading the config entry fail.
         self._debouncer.async_shutdown()
@@ -281,13 +288,37 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
             )
         except Exception as err:
             _LOGGER.debug("hourly forecast unavailable for %s: %s", weather_entity, err)
-            return self._forecast
+            return self._keep_or_drop_forecast(weather_entity, now)
 
         raw = (response or {}).get(weather_entity, {}).get("forecast", [])
         forecast = build_forecast(raw)
-        if forecast:
-            self._forecast = forecast
-            self._forecast_fetched = now
+        if not forecast:
+            return self._keep_or_drop_forecast(weather_entity, now)
+
+        self._forecast = forecast
+        self._forecast_fetched = now
+        return self._forecast
+
+    def _keep_or_drop_forecast(self, weather_entity: str, now: datetime) -> tuple[Any, ...]:
+        """Serve the cached forecast, but not forever.
+
+        A weather integration that stops answering used to leave the last
+        forecast in place indefinitely: the schedule, the tipping points and
+        the whole cooling budget kept being computed from hours-old numbers,
+        and the "no hourly forecast" repair never fired because the cache was
+        not empty. Past FORECAST_MAX_STALENESS we would rather have no forecast
+        than a confidently wrong one.
+        """
+        if self._forecast_fetched is None or now - self._forecast_fetched <= FORECAST_MAX_STALENESS:
+            return self._forecast
+
+        _LOGGER.warning(
+            "no hourly forecast from %s since %s - dropping the cached one",
+            weather_entity,
+            self._forecast_fetched.isoformat(),
+        )
+        self._forecast = ()
+        self._forecast_fetched = None
         return self._forecast
 
     # ------------------------------------------------------------------
@@ -426,7 +457,13 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
 
         for rec_id in ids:
             if scope == "today":
-                self.memory.ignore_today(rec_id, dt_util.as_local(now))
+                # UTC, not local: everything that reads this back - the arbiter,
+                # the notification manager, EngineMemory.prune - compares
+                # against world.now, which is UTC. Storing the local date made
+                # "ignore today" a no-op whenever the two dates disagree (00:00
+                # to 02:00 local in central European summer), because prune()
+                # dropped the entry again on the very next evaluation.
+                self.memory.ignore_today(rec_id, now)
             elif scope == "until_evening":
                 evening = dt_util.as_local(now).replace(hour=18, minute=0, second=0, microsecond=0)
                 if evening <= dt_util.as_local(now):

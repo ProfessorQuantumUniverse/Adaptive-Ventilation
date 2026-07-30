@@ -948,15 +948,23 @@ class EngineMemory:
         return sum(v for _, v in self.budget_history[-days:])
 
     def prune(self, now: datetime) -> None:
-        """Drop expired bookkeeping so the persisted blob stays small."""
+        """Drop expired bookkeeping so the persisted blob stays small.
+
+        Every dict is snapshotted with ``list()`` first. The engine runs in an
+        executor thread while the event loop may be handling a snooze or an
+        acknowledgement on the very same memory, and rebuilding a dict straight
+        from its own ``.items()`` raises "dictionary changed size during
+        iteration" if that happens to land in between. Pruning against a
+        snapshot can at worst miss one entry until the next run.
+        """
         today = now.date().isoformat()
-        self.cooldowns = {k: v for k, v in self.cooldowns.items() if v > now}
-        self.snoozed_until = {k: v for k, v in self.snoozed_until.items() if v > now}
-        self.ignored_today = {k: v for k, v in self.ignored_today.items() if v == today}
-        self.manual_hold = {k: v for k, v in self.manual_hold.items() if v == today}
+        self.cooldowns = {k: v for k, v in list(self.cooldowns.items()) if v > now}
+        self.snoozed_until = {k: v for k, v in list(self.snoozed_until.items()) if v > now}
+        self.ignored_today = {k: v for k, v in list(self.ignored_today.items()) if v == today}
+        self.manual_hold = {k: v for k, v in list(self.manual_hold.items()) if v == today}
         cutoff = now - timedelta(days=2)
         self.targets = {
-            k: v for k, v in self.targets.items() if v.since is None or v.since > cutoff
+            k: v for k, v in list(self.targets.items()) if v.since is None or v.since > cutoff
         }
 
 

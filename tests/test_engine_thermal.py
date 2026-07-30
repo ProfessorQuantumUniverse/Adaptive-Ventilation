@@ -200,6 +200,50 @@ def test_tropical_night_detection() -> None:
     assert not thermal.is_tropical_night(cool, NOW, 20.0)
 
 
+def _clock_forecast(
+    local_hours: dict[int, float], utc_offset: int, day: int = 15
+) -> tuple[ForecastHour, ...]:
+    """Forecast built from *local* wall clock hours, stored in UTC as HA does."""
+    base = datetime(2025, 7, day, 0, 0, tzinfo=UTC) - timedelta(hours=utc_offset)
+    return tuple(
+        ForecastHour(time=base + timedelta(hours=hour), temperature=value, humidity=60.0)
+        for hour, value in sorted(local_hours.items())
+    )
+
+
+def test_tropical_night_uses_the_local_night_not_utc_clock_hours() -> None:
+    """Forecast timestamps are UTC, so a fixed 22-06 hour test was off by the offset.
+
+    In central European summer it asked about local 00:00-08:00 and let the
+    07:00 dip veto a real tropical night; at UTC+10 it sampled the afternoon.
+    """
+
+    # 21.5 C from 22:00 to 06:00 local, dipping to 17 C at 07:00/08:00 and 20/21:00.
+    def temperature(hour: int) -> float:
+        clock = hour % 24
+        if clock >= 22 or clock <= 6:
+            return 21.5
+        return 17.0 if clock in (7, 8, 20, 21) else 30.0
+
+    local = {hour: temperature(hour) for hour in range(14, 38)}
+
+    berlin = _clock_forecast(local, utc_offset=2)
+    assert thermal.is_tropical_night(
+        berlin, berlin[6].time, 20.0, latitude=52.5, longitude=13.4
+    )  # berlin[6] is 20:00 local
+
+    lisbon = _clock_forecast(local, utc_offset=1)
+    assert thermal.is_tropical_night(lisbon, lisbon[6].time, 20.0, latitude=38.7, longitude=-9.1)
+
+
+def test_tropical_night_still_says_no_when_the_night_actually_cools_down() -> None:
+    local = {hour: 21.0 if hour % 24 in (22, 23, 0, 1) else 16.0 for hour in range(14, 38)}
+    berlin = _clock_forecast(local, utc_offset=2)
+    assert not thermal.is_tropical_night(
+        berlin, berlin[6].time, 20.0, latitude=52.5, longitude=13.4
+    )
+
+
 def test_heatwave_lookahead_ignores_the_next_few_hours() -> None:
     temperatures = [35.0] * 6 + [20.0] * 60
     found, _peak, _time = thermal.heatwave_ahead(_forecast(temperatures), NOW, 32.0)

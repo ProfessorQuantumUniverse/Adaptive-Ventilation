@@ -20,9 +20,15 @@ def co2_high(ctx: EvaluationContext) -> Iterable[Recommendation]:
             continue
         threshold = prefs.co2_threshold
         # Hysteresis: once we have advised a purge, keep advising until the
-        # level drops a good chunk below the threshold.
-        memory = ctx.memory.target(room.id)
-        if memory.action in (Action.PURGE, Action.CROSS_VENTILATE):
+        # level drops a good chunk below the threshold. The advice is recorded
+        # per *window* - this rule targets windows, and so does the arbiter -
+        # so asking ctx.memory.target(room.id) never saw a purge and the
+        # hysteresis silently never engaged.
+        purging = any(
+            ctx.memory.target(window.id).action in (Action.PURGE, Action.CROSS_VENTILATE)
+            for window in ctx.windows_of(room)
+        )
+        if purging:
             threshold -= prefs.co2_hysteresis
         if room.co2 < threshold:
             continue

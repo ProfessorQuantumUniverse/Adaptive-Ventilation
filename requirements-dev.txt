@@ -8,7 +8,9 @@ pytest-cov>=5.0
 pyyaml>=6.0
 
 # Home Assistant runtime tests (tests/hass/). POSIX only: the plugin needs
-# fcntl and unix sockets, so on Windows run `pytest -p no:homeassistant`.
+# fcntl and unix sockets, and it fails while pytest is still loading plugins,
+# so on Windows run it with PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 - see
+# docs/development.md.
 pytest-homeassistant-custom-component>=0.13
 
 # The sidebar panel means the integration depends on the frontend component,
@@ -18,3 +20,7 @@ home-assistant-frontend
 
 ruff>=0.6
 mypy>=1.11
+
+# Only for scripts/make_brand_assets.py, which re-renders brand/*.png by hand.
+# Nothing in CI or in the test suite needs it.
+pillow>=10.0

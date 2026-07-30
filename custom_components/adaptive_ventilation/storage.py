@@ -34,7 +34,13 @@ LEARNED_SCHEMA_VERSION = 1
 
 
 def serialize_memory(memory: EngineMemory) -> dict[str, Any]:
-    """Engine memory to a JSON friendly dict."""
+    """Engine memory to a JSON friendly dict.
+
+    Reads every dict through ``list()``: persisting can be triggered from the
+    event loop while the engine is still mutating the same memory in an
+    executor thread, and a bare comprehension over ``.items()`` would then die
+    with "dictionary changed size during iteration".
+    """
     return {
         "schema": MEMORY_SCHEMA_VERSION,
         "targets": {
@@ -45,13 +51,13 @@ def serialize_memory(memory: EngineMemory) -> dict[str, Any]:
                 "contradictions": value.contradictions,
                 "contradiction_day": value.contradiction_day,
             }
-            for key, value in memory.targets.items()
+            for key, value in list(memory.targets.items())
         },
-        "cooldowns": {k: _iso(v) for k, v in memory.cooldowns.items()},
-        "snoozed_until": {k: _iso(v) for k, v in memory.snoozed_until.items()},
+        "cooldowns": {k: _iso(v) for k, v in list(memory.cooldowns.items())},
+        "snoozed_until": {k: _iso(v) for k, v in list(memory.snoozed_until.items())},
         "ignored_today": dict(memory.ignored_today),
         "manual_hold": dict(memory.manual_hold),
-        "last_purge": {k: _iso(v) for k, v in memory.last_purge.items()},
+        "last_purge": {k: _iso(v) for k, v in list(memory.last_purge.items())},
         "pushes_today": memory.pushes_today,
         "push_day": memory.push_day,
         "budget_history": [list(item) for item in memory.budget_history],

@@ -35,6 +35,17 @@ _LOGGER = logging.getLogger(__name__)
 STATIC_URL = f"/{DOMAIN}_frontend"
 _REGISTERED = f"{DOMAIN}_panel_registered"
 
+#: Actions that rewrite the config entry. The panel is intentionally reachable
+#: without admin rights - acknowledging, snoozing and starting a purge are
+#: everyday things every household member does - but reconfiguring the
+#: integration is not, so these are gated separately.
+ADMIN_ACTIONS = frozenset({"set_option", "set_profile", "reset_tuning", "override"})
+
+#: Keys ``set_option`` may write. Without a list, a typo from the frontend
+#: lands in the entry options forever and nothing ever reads or removes it.
+#: These are exactly the sliders the tuning tab offers.
+SETTABLE_OPTIONS = frozenset(TUNABLE_KEYS)
+
 
 async def async_register_panel(hass: HomeAssistant) -> None:
     """Serve the panel module and add it to the sidebar."""
@@ -161,6 +172,13 @@ async def ws_action(
         return
 
     action = msg["action"]
+    if action in ADMIN_ACTIONS and not connection.user.is_admin:
+        connection.send_error(msg["id"], "unauthorized", f"{action} requires an administrator")
+        return
+    if action == "set_option" and msg.get("option") not in SETTABLE_OPTIONS:
+        connection.send_error(msg["id"], "invalid_option", f"{msg.get('option')} is not tunable")
+        return
+
     try:
         if action == "acknowledge":
             await coordinator.async_acknowledge(msg["recommendation_id"])

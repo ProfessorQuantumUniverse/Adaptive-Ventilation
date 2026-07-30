@@ -371,3 +371,55 @@ def test_unparseable_warning_entity_degrades_to_a_generic_alert() -> None:
 def test_no_warning_entity_means_no_alerts() -> None:
     assert models.build_alerts(fake_hass(), None) == ()
     assert models.build_alerts(fake_hass(), "binary_sensor.missing") == ()
+
+
+# --------------------------------------------------------------------------
+# Manual blinds and the shading horizon
+# --------------------------------------------------------------------------
+# These used to live in tests/test_engine_properties.py, which the "Engine
+# without Home Assistant" CI job runs against an interpreter that has no
+# homeassistant package at all. They reach into models.py, so they belong here.
+
+
+def test_a_manual_blind_is_never_driven_automatically() -> None:
+    """cover_auto_allowed without an entity would be a promise we cannot keep."""
+    config = models.WindowConfig.from_subentry(
+        "w1",
+        {"name": "South", "room": "r", "manual_cover": True, "cover_auto_allowed": True},
+    )
+    assert config.manual_cover
+    # build_windows drops the automation flag when there is no entity to drive.
+    window = models.build_windows(fake_hass(), [config])[0]
+    assert window.has_cover
+    assert window.cover_is_manual
+    assert not window.cover_auto_allowed
+
+
+def test_the_shading_horizon_blocks_the_sun_before_it_arrives() -> None:
+    """A south window behind a taller building gets no direct sun until midday."""
+    from adaptive_ventilation.engine.solar import solar_load, sun_position
+    from adaptive_ventilation.engine.state import WindowState
+
+    reference = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    profile = models.horizon_from_sun_hours(time(13, 0), None, 50.11, 8.68, reference=reference)
+    assert profile is not None
+
+    open_window = WindowState(id="w", name="S", room_id="r", azimuth=180.0, area_m2=2.0)
+    shaded = WindowState(
+        id="w", name="S", room_id="r", azimuth=180.0, area_m2=2.0, horizon_profile=profile
+    )
+
+    morning = datetime(2026, 7, 30, 9, 0, tzinfo=UTC)
+    elevation, azimuth = sun_position(morning, 50.11, 8.68)
+    assert solar_load(shaded, elevation, azimuth) < solar_load(open_window, elevation, azimuth) / 4
+
+    # Once the sun comes round, the two agree again.
+    afternoon = datetime(2026, 7, 30, 15, 0, tzinfo=UTC)
+    elevation, azimuth = sun_position(afternoon, 50.11, 8.68)
+    assert solar_load(shaded, elevation, azimuth) == pytest.approx(
+        solar_load(open_window, elevation, azimuth)
+    )
+
+
+def test_no_sun_hours_configured_means_no_horizon() -> None:
+    assert models.horizon_from_sun_hours(None, None, 50.0, 8.0) is None

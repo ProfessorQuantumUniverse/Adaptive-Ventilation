@@ -383,7 +383,13 @@ def _cooling_budget(ctx: EvaluationContext) -> CoolingBudget:
     lost = sum(r for r in rates if r > 0.0)
     balance = ctx.memory.balance(3)
 
-    tropical = thermal.is_tropical_night(state.forecast, state.now, prefs.tropical_night_threshold)
+    tropical = thermal.is_tropical_night(
+        state.forecast,
+        state.now,
+        prefs.tropical_night_threshold,
+        latitude=state.building.latitude,
+        longitude=state.building.longitude,
+    )
     heatwave, peak, _peak_time = thermal.heatwave_ahead(
         state.forecast, state.now, prefs.heatwave_threshold
     )

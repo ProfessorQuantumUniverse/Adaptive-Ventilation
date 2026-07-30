@@ -18,8 +18,8 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Install tooling
@@ -37,8 +37,8 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Install dependencies
@@ -68,21 +68,38 @@ jobs:
   engine-only:
     name: Engine without Home Assistant
     runs-on: ubuntu-latest
+    # The engine may only ever import plain Python. The test files listed here
+    # are run against an interpreter with no homeassistant package installed,
+    # so they have to keep that promise too - a test that reaches into
+    # models.py belongs in tests/test_ha_*.py instead.
+    env:
+      ENGINE_TESTS: >-
+        tests/test_engine_scenarios.py
+        tests/test_engine_psychrometrics.py
+        tests/test_engine_thermal.py
+        tests/test_engine_solar.py
+        tests/test_engine_properties.py
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Install the bare minimum
         run: python -m pip install --upgrade pip pytest pyyaml
       - name: Prove the engine has no Home Assistant import
-        # If anything under engine/ ever reaches for homeassistant, this fails:
-        # the package is not installed in this job at all.
+        # If anything under engine/ - or in the standalone test files, or in
+        # what they share through tests/ - ever reaches for homeassistant, this
+        # fails: the package is not installed in this job at all.
         run: |
           python - <<'PY'
-          import ast, pathlib, sys
+          import ast, os, pathlib, sys
+          paths = list(
+              pathlib.Path("custom_components/adaptive_ventilation/engine").rglob("*.py")
+          )
+          paths += [pathlib.Path(name) for name in os.environ["ENGINE_TESTS"].split()]
+          paths += [pathlib.Path("tests/conftest.py"), pathlib.Path("tests/scenario.py")]
           bad = []
-          for path in pathlib.Path("custom_components/adaptive_ventilation/engine").rglob("*.py"):
+          for path in paths:
               tree = ast.parse(path.read_text(encoding="utf-8"))
               for node in ast.walk(tree):
                   if isinstance(node, ast.Import):
@@ -92,29 +109,28 @@ jobs:
                   else:
                       continue
                   for name in names:
-                      if name.split(".")[0] == "homeassistant":
+                      root = name.split(".")[0]
+                      if root == "homeassistant" or name.startswith("adaptive_ventilation.models"):
                           bad.append(f"{path}:{node.lineno}")
           if bad:
-              sys.exit("engine imports Home Assistant: " + ", ".join(bad))
-          print("engine is Home Assistant free")
+              sys.exit("Home Assistant reached from a standalone module: " + ", ".join(bad))
+          print("engine and its standalone tests are Home Assistant free")
           PY
       - name: Run the engine tests standalone
-        run: pytest tests/test_engine_scenarios.py tests/test_engine_psychrometrics.py
-             tests/test_engine_thermal.py tests/test_engine_solar.py
-             tests/test_engine_properties.py -q
+        run: pytest $ENGINE_TESTS -q
 
   hassfest:
     name: hassfest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: home-assistant/actions/hassfest@master
-  
+
   hacs:
     name: HACS
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: hacs/action@main
         with:
           category: integration

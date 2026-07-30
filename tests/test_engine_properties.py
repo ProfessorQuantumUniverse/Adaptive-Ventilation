@@ -277,8 +277,8 @@ def test_notifications_never_exceed_the_configured_restraint() -> None:
     """At maximum restraint only HEALTH and SAFETY may still push."""
     prefs = Preferences(
         notification_restraint=100,
-        quiet_hours_start=__import__("datetime").time(23, 59),
-        quiet_hours_end=__import__("datetime").time(0, 1),
+        quiet_hours_start=time(23, 59),
+        quiet_hours_end=time(0, 1),
     )
     state = _world(preferences=prefs, outdoor=OutdoorState.create(14.0, 60.0))
     result = evaluate(state)
@@ -517,57 +517,83 @@ def test_a_blind_without_an_entity_still_gets_shading_advice() -> None:
     assert cover.notify
 
 
-def test_a_manual_blind_is_never_driven_automatically() -> None:
-    """cover_auto_allowed without an entity would be a promise we cannot keep."""
-    from adaptive_ventilation.models import WindowConfig
-
-    config = WindowConfig.from_subentry(
-        "w1",
-        {"name": "South", "room": "r", "manual_cover": True, "cover_auto_allowed": True},
-    )
-    assert config.manual_cover
-    # build_windows drops the automation flag when there is no entity to drive.
-    from types import SimpleNamespace
-
-    from adaptive_ventilation.models import build_windows
-
-    hass = SimpleNamespace(
-        states=SimpleNamespace(get=lambda _e: None),
-        config=SimpleNamespace(latitude=50.1, longitude=8.7),
-    )
-    window = build_windows(hass, [config])[0]
-    assert window.has_cover
-    assert window.cover_is_manual
-    assert not window.cover_auto_allowed
+# --------------------------------------------------------------------------
+# Threshold hysteresis
+# --------------------------------------------------------------------------
 
 
-def test_the_shading_horizon_blocks_the_sun_before_it_arrives() -> None:
-    """A south window behind a taller building gets no direct sun until midday."""
-    from adaptive_ventilation.engine.solar import solar_load, sun_position
-    from adaptive_ventilation.models import horizon_from_sun_hours
-
-    reference = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
-    profile = horizon_from_sun_hours(time(13, 0), None, 50.11, 8.68, reference=reference)
-    assert profile is not None
-
-    open_window = WindowState(id="w", name="S", room_id="r", azimuth=180.0, area_m2=2.0)
-    shaded = WindowState(
-        id="w", name="S", room_id="r", azimuth=180.0, area_m2=2.0, horizon_profile=profile
-    )
-
-    morning = datetime(2026, 7, 30, 9, 0, tzinfo=UTC)
-    elevation, azimuth = sun_position(morning, 50.11, 8.68)
-    assert solar_load(shaded, elevation, azimuth) < solar_load(open_window, elevation, azimuth) / 4
-
-    # Once the sun comes round, the two agree again.
-    afternoon = datetime(2026, 7, 30, 15, 0, tzinfo=UTC)
-    elevation, azimuth = sun_position(afternoon, 50.11, 8.68)
-    assert solar_load(shaded, elevation, azimuth) == pytest.approx(
-        solar_load(open_window, elevation, azimuth)
+def _co2_world(co2: int, minutes: int = 0) -> WorldState:
+    """A winter flat with one room, one window and a CO2 reading."""
+    moment = NOW + timedelta(minutes=minutes)
+    return WorldState(
+        now=moment,
+        outdoor=OutdoorState.create(2.0, 80.0, pressure=1013.0),
+        rooms=(
+            RoomState.create("living", "Living", 21.0, 45.0, co2=co2, volume_m3=60.0, priority=1),
+        ),
+        windows=(WindowState(id="w1", name="South", room_id="living", azimuth=180.0, area_m2=2.0),),
+        forecast=tuple(
+            ForecastHour(time=NOW + timedelta(hours=i), temperature=2.0, humidity=80.0)
+            for i in range(30)
+        ),
+        sun=SunState(azimuth=180.0, elevation=15.0),
     )
 
 
-def test_no_sun_hours_configured_means_no_horizon() -> None:
-    from adaptive_ventilation.models import horizon_from_sun_hours
+def _co2_high_fired(result: object) -> bool:
+    """Whether co2_high produced a candidate, won the target or not."""
+    everything = itertools.chain(result.recommendations, result.suppressed)  # type: ignore[attr-defined]
+    return any(rec.rule_id == "co2_high" for rec in everything)
 
-    assert horizon_from_sun_hours(None, None, 50.0, 8.0) is None
+
+def test_co2_hysteresis_keeps_advising_below_the_threshold() -> None:
+    """Once a purge is advised it holds until CO2 has really come down.
+
+    The rule looked the previous action up under the *room* id, but the advice
+    is recorded per window - both the rule and the arbiter target windows - so
+    the lookup never saw a purge and the hysteresis silently never engaged.
+    """
+    memory = EngineMemory()
+
+    assert _co2_high_fired(evaluate(_co2_world(1100), memory)), "1100 ppm has to trigger a purge"
+    assert memory.target("w1").action in (Action.PURGE, Action.CROSS_VENTILATE)
+
+    # 920 ppm is below the 1000 ppm threshold but inside the 150 ppm band.
+    assert _co2_high_fired(evaluate(_co2_world(920, minutes=30), memory))
+    # 830 ppm is below the band - now it may stop.
+    assert not _co2_high_fired(evaluate(_co2_world(830, minutes=60), memory))
+
+
+def test_co2_hysteresis_does_not_lower_the_threshold_out_of_nowhere() -> None:
+    """Without a purge in the memory the plain threshold applies."""
+    assert not _co2_high_fired(evaluate(_co2_world(920), EngineMemory()))
+
+
+#: The counterparts that need ``adaptive_ventilation.models`` - and therefore
+#: Home Assistant - live in ``tests/test_ha_models.py``. This module has to stay
+#: importable with no Home Assistant installed at all; CI has a job that proves
+#: it by running exactly these files against a bare interpreter.
+
+
+def test_ignore_today_only_survives_when_stored_on_the_same_clock() -> None:
+    """`prune` and `is_ignored_today` both read world.now, which is UTC.
+
+    Storing the *local* date instead - as the coordinator used to - made
+    "ignore today" a no-op whenever the two dates disagree, because prune()
+    threw the entry away again on the very next evaluation.
+    """
+    from datetime import timezone
+
+    utc_now = datetime(2025, 7, 15, 22, 30, tzinfo=UTC)
+    local_now = utc_now.astimezone(timezone(timedelta(hours=2)))  # 00:30 the next day
+    assert local_now.date() != utc_now.date(), "the fixture has to straddle midnight"
+
+    on_local_clock = EngineMemory()
+    on_local_clock.ignore_today("co2_high:w1", local_now)
+    on_local_clock.prune(utc_now)
+    assert not on_local_clock.is_ignored_today("co2_high:w1", utc_now)
+
+    on_world_clock = EngineMemory()
+    on_world_clock.ignore_today("co2_high:w1", utc_now)
+    on_world_clock.prune(utc_now)
+    assert on_world_clock.is_ignored_today("co2_high:w1", utc_now)

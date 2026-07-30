@@ -199,13 +199,32 @@ class Calibrator:
         outdoor: Sequence[Sample],
         open_periods: Sequence[tuple[datetime, datetime]],
     ) -> tuple[float | None, float | None]:
-        """Regress the daytime temperature rise against the computed solar load."""
+        """Regress the daytime temperature rise against the computed solar load.
+
+        The measured rate is the sum of three terms: what the envelope lets
+        through, what the sun brings in, and the internal gains. Only the last
+        two are wanted here, so the envelope term is subtracted per sample
+        before the regression - it is the one that correlates with the sun
+        (both peak at midday), so leaving it in inflated every learned
+        ``solar_gain_coefficient`` and dumped a seasonally signed offset into
+        ``internal_gain_w``.
+        """
+        from .engine import thermal
+        from .engine.state import BuildingProfile, RoomState, WindowState
+
         windows = [w for w in self.coordinator.config.windows if w.room_id == room_id]
         room = self.coordinator.config.room(room_id)
         if not windows or room is None:
             return None, None
 
-        from .engine.state import WindowState
+        building = self.coordinator.world.building if self.coordinator.world else BuildingProfile()
+        probe_room = RoomState(id=room_id, name=room.name, volume_m3=room.volume_m3)
+        capacity = thermal.thermal_capacity_wh_per_k(probe_room, building)
+        conductance = thermal.envelope_conductance_w_per_k(
+            probe_room,
+            thermal.effective_tau(probe_room, building, self.coordinator.learned.room(room_id)),
+            building,
+        )
 
         probes = [
             WindowState(
@@ -241,8 +260,10 @@ class Calibrator:
             )
             if load <= 20.0:
                 continue
-            # Remove the envelope term so the residual is solar plus internal.
-            rate = (current.value - previous.value) / hours
+            # Remove the envelope term so the residual really is solar plus
+            # internal: dT/dt = (UA*(T_out - T_in) + solar + internal) / C.
+            envelope_rate = conductance * (outdoor_value - previous.value) / capacity
+            rate = (current.value - previous.value) / hours - envelope_rate
             xs.append(load)
             ys.append(rate)
 
@@ -254,13 +275,6 @@ class Calibrator:
 
         # Convert the slope (K/h per W) into a dimensionless correction factor
         # against the modelled capacity.
-        from .engine import thermal
-        from .engine.state import RoomState
-
-        probe_room = RoomState(id=room_id, name=room.name, volume_m3=room.volume_m3)
-        capacity = thermal.thermal_capacity_wh_per_k(
-            probe_room, self.coordinator.world.building if self.coordinator.world else None
-        )
         modelled_slope = 1.0 / capacity
         coefficient = _bounded(slope / modelled_slope, SOLAR_GAIN_BOUNDS)
         internal = (

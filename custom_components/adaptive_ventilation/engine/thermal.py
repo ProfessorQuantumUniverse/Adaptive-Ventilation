@@ -613,13 +613,26 @@ def projected_temperature(room: RoomState, rate_k_per_h: float, hours: float) ->
 
 
 def is_tropical_night(
-    forecast: Sequence[ForecastHour], now: datetime, threshold: float = 20.0
+    forecast: Sequence[ForecastHour],
+    now: datetime,
+    threshold: float = 20.0,
+    *,
+    latitude: float = 50.0,
+    longitude: float = 8.0,
 ) -> bool:
-    """Tropical night = the overnight minimum stays above ``threshold``."""
+    """Tropical night = the overnight minimum stays above ``threshold``.
+
+    Which hours count as "overnight" is decided by the sun, not by the clock.
+    Forecast timestamps are UTC, so testing ``f.time.hour >= 22 or <= 6``
+    silently asked about local 00:00-08:00 in central European summer - pulling
+    the 07:00 and 08:00 dip into the minimum and hiding real tropical nights -
+    and about the middle of the *afternoon* at UTC+10.
+    """
     night = [
         f
         for f in forecast
-        if now <= f.time <= now + timedelta(hours=14) and (f.time.hour >= 22 or f.time.hour <= 6)
+        if now <= f.time <= now + timedelta(hours=14)
+        and solar_mod.sun_position(f.time, latitude, longitude)[0] < -6.0
     ]
     if not night:
         return False

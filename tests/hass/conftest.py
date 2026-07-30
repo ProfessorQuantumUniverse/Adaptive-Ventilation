@@ -1,8 +1,10 @@
 """Fixtures for the tests that need a running Home Assistant instance.
 
 These require ``pytest-homeassistant-custom-component``, which does not run on
-Windows (it needs ``fcntl`` and unix sockets). They are skipped there and run
-in CI on Linux; see ``docs/development.md``.
+Windows (it needs ``fcntl`` and unix sockets) and fails while pytest is still
+loading plugins, so nothing here can skip itself. On Windows the plugin has to
+be kept from loading and this directory has to be excluded by hand; CI runs it
+on Linux. See ``docs/development.md``.
 """
 
 from __future__ import annotations

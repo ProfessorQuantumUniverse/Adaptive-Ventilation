@@ -434,6 +434,7 @@ def test_preferences_accept_a_string_clock() -> None:
 # Config flow schemas
 # --------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_every_options_step_schema_validates_its_own_defaults() -> None:
     """A unitless number selector used to reject the whole form.
@@ -502,8 +503,19 @@ class _FakeNotifyHass:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.config = types.SimpleNamespace(language="en")
-        self.bus = types.SimpleNamespace(async_listen=lambda *a, **kw: None)
+        #: Event listeners still attached, by name. Home Assistant hands back an
+        #: unsubscribe callback; dropping it is exactly the leak we test for.
+        self.listeners: list[str] = []
+        self.bus = types.SimpleNamespace(async_listen=self._listen)
         self.services = types.SimpleNamespace(async_call=self._call)
+
+    def _listen(self, event: str, _handler: Any) -> Any:
+        self.listeners.append(event)
+
+        def unsubscribe() -> None:
+            self.listeners.remove(event)
+
+        return unsubscribe
 
     async def _call(self, domain: str, service: str, payload: dict, **kwargs: Any) -> None:
         self.calls.append((service, payload))
@@ -538,10 +550,9 @@ def _notify_world(outdoor: float = 14.0) -> WorldState:
     )
 
 
-def test_a_pushed_notification_is_not_retracted_on_the_next_evaluation() -> None:
+@pytest.mark.asyncio
+async def test_a_pushed_notification_is_not_retracted_on_the_next_evaluation() -> None:
     """Sending sets a cooldown, which clears rec.notify - that must not withdraw it."""
-    import asyncio
-
     from adaptive_ventilation.notify_manager import NotificationManager
 
     memory = EngineMemory()
@@ -551,7 +562,7 @@ def test_a_pushed_notification_is_not_retracted_on_the_next_evaluation() -> None
 
     first = evaluate(world, memory)
     assert any(rec.notify for rec in first.recommendations), "nothing would be pushed at all"
-    asyncio.run(manager.async_process(first))
+    await manager.async_process(first)
     sent = [service for service, payload in hass.calls if payload.get("title")]
     assert sent, "no notification was sent"
 
@@ -560,16 +571,15 @@ def test_a_pushed_notification_is_not_retracted_on_the_next_evaluation() -> None
     hass.calls.clear()
     later = world.with_overrides(now=NOW + timedelta(seconds=2))
     manager.coordinator.world = later  # type: ignore[attr-defined]
-    asyncio.run(manager.async_process(evaluate(later, memory)))
+    await manager.async_process(evaluate(later, memory))
 
     cleared = [p for _s, p in hass.calls if p.get("message") == "clear_notification"]
     assert not cleared, "the notification was withdrawn seconds after it arrived"
     assert manager._sent, "the manager forgot it had sent anything"
 
 
-def test_a_notification_is_withdrawn_once_the_advice_is_gone() -> None:
-    import asyncio
-
+@pytest.mark.asyncio
+async def test_a_notification_is_withdrawn_once_the_advice_is_gone() -> None:
     from adaptive_ventilation.notify_manager import NotificationManager
 
     memory = EngineMemory()
@@ -577,23 +587,22 @@ def test_a_notification_is_withdrawn_once_the_advice_is_gone() -> None:
     hass = _FakeNotifyHass()
     coordinator = _FakeCoordinator(world, memory)
     manager = NotificationManager(hass, coordinator)  # type: ignore[arg-type]
-    asyncio.run(manager.async_process(evaluate(world, memory)))
+    await manager.async_process(evaluate(world, memory))
     assert manager._sent
 
     # It is now warmer outside than inside, so the night flush is over.
     hass.calls.clear()
     hot = _notify_world(outdoor=32.0).with_overrides(now=NOW + timedelta(hours=2))
     coordinator.world = hot
-    asyncio.run(manager.async_process(evaluate(hot, memory)))
+    await manager.async_process(evaluate(hot, memory))
 
     cleared = [p for _s, p in hass.calls if p.get("message") == "clear_notification"]
     assert cleared, "obsolete advice was left on the lock screen"
     assert not manager._sent
 
 
-def test_snoozing_withdraws_the_notification() -> None:
-    import asyncio
-
+@pytest.mark.asyncio
+async def test_snoozing_withdraws_the_notification() -> None:
     from adaptive_ventilation.notify_manager import NotificationManager
 
     memory = EngineMemory()
@@ -601,12 +610,12 @@ def test_snoozing_withdraws_the_notification() -> None:
     hass = _FakeNotifyHass()
     manager = NotificationManager(hass, _FakeCoordinator(world, memory))  # type: ignore[arg-type]
     result = evaluate(world, memory)
-    asyncio.run(manager.async_process(result))
+    await manager.async_process(result)
     pushed = next(rec for rec in result.recommendations if rec.notify)
 
     hass.calls.clear()
     memory.snooze(pushed.id, NOW + timedelta(hours=1))
-    asyncio.run(manager.async_process(evaluate(world, memory)))
+    await manager.async_process(evaluate(world, memory))
 
     assert [p for _s, p in hass.calls if p.get("message") == "clear_notification"]
 
@@ -676,3 +685,99 @@ def test_cloud_cover_falls_back_to_forecast_then_condition() -> None:
     assert _cloud_coverage({"condition": "cloudy"}, None) == 90.0
     assert _cloud_coverage({"condition": "sunny"}, None) == 0.0
     assert _cloud_coverage({}, None) is None
+
+
+def test_the_notification_listener_is_released_on_shutdown() -> None:
+    """Every options write reloads the entry - a leaked listener per reload adds up."""
+    from adaptive_ventilation.notify_manager import NotificationManager
+
+    hass = _FakeNotifyHass()
+    world = _notify_world()
+
+    managers = [
+        NotificationManager(hass, _FakeCoordinator(world, EngineMemory()))  # type: ignore[arg-type]
+        for _ in range(3)
+    ]
+    assert hass.listeners == ["mobile_app_notification_action"] * 3
+
+    for manager in managers:
+        manager.async_shutdown()
+    assert hass.listeners == []
+
+    # Shutting down twice must stay harmless.
+    managers[0].async_shutdown()
+    assert hass.listeners == []
+
+
+# --------------------------------------------------------------------------
+# Panel permissions
+# --------------------------------------------------------------------------
+
+
+def test_config_writing_panel_actions_require_an_admin() -> None:
+    """The panel is deliberately open to non-admins; reconfiguring it is not."""
+    from adaptive_ventilation import panel
+
+    assert {"set_option", "set_profile", "reset_tuning", "override"} == panel.ADMIN_ACTIONS
+    # The everyday actions stay reachable for everyone in the household.
+    for action in ("acknowledge", "snooze", "ignore_today", "purge"):
+        assert action not in panel.ADMIN_ACTIONS
+
+
+def test_every_panel_slider_maps_to_a_settable_option() -> None:
+    """The set_option allowlist and the tuning tab must not drift apart.
+
+    Without the allowlist a renamed slider wrote a dead key into the entry
+    options forever; with one that is out of date the slider silently stops
+    working. Read the keys straight out of the panel source so neither can
+    happen unnoticed.
+    """
+    from pathlib import Path
+    import re
+
+    from adaptive_ventilation import panel
+
+    source = (
+        Path(__file__).parents[1]
+        / "custom_components"
+        / "adaptive_ventilation"
+        / "frontend"
+        / "adaptive-ventilation-panel.js"
+    ).read_text(encoding="utf-8")
+
+    sliders = set(re.findall(r'slider\("([a-z0-9_]+)"', source))
+    assert sliders, "no sliders found - did the panel markup change?"
+
+    unsettable = sorted(sliders - panel.SETTABLE_OPTIONS)
+    assert not unsettable, f"panel sliders the backend would reject: {unsettable}"
+
+
+# --------------------------------------------------------------------------
+# Forecast cache
+# --------------------------------------------------------------------------
+
+
+def test_a_forecast_that_stops_refreshing_is_eventually_dropped() -> None:
+    """A dead weather integration must not keep feeding the schedule forever.
+
+    Serving the last forecast indefinitely also hid the "no hourly forecast"
+    repair, because the cache was never empty.
+    """
+    from adaptive_ventilation.coordinator import (
+        FORECAST_MAX_STALENESS,
+        AdaptiveVentilationCoordinator,
+    )
+    from adaptive_ventilation.engine.state import ForecastHour
+
+    coordinator = object.__new__(AdaptiveVentilationCoordinator)
+    cached = (ForecastHour(time=NOW, temperature=18.0, humidity=60.0),)
+
+    # Recently fetched: keep serving it, a single failed poll means nothing.
+    coordinator._forecast = cached
+    coordinator._forecast_fetched = NOW - timedelta(minutes=25)
+    assert coordinator._keep_or_drop_forecast("weather.home", NOW) == cached
+
+    # Long past the grace period: better no forecast than a confidently old one.
+    coordinator._forecast_fetched = NOW - FORECAST_MAX_STALENESS - timedelta(minutes=1)
+    assert coordinator._keep_or_drop_forecast("weather.home", NOW) == ()
+    assert coordinator._forecast_fetched is None

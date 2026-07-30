@@ -35,16 +35,24 @@ pytest tests
 ### On Windows
 
 `pytest-homeassistant-custom-component` needs `fcntl` and unix sockets, so it cannot run on
-Windows. It registers itself automatically through its `pytest11` entry point and breaks the
-whole session, so disable it:
+Windows. It registers itself through its `pytest11` entry point and blows up while pytest is
+still loading plugins - before any conftest, and therefore before anything could skip it. `-p
+no:...` is applied too late to help; the plugin has to be kept from loading at all:
 
 ```bash
-pytest tests -p no:homeassistant
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest tests --ignore=tests/hass -p asyncio
 ```
 
-Everything except the thirteen tests under `tests/hass/` runs that way, the engine, the physics,
-the property tests, the mapping layer, storage, presentation and the calibration maths. The
-`tests/hass/` tests skip themselves on Windows and run in CI on Linux.
+PowerShell:
+
+```bash
+$env:PYTEST_DISABLE_PLUGIN_AUTOLOAD=1; pytest tests --ignore=tests/hass -p asyncio
+```
+
+Disabling autoload switches off *every* plugin, hence the explicit `-p asyncio` for the async
+tests. Everything except `tests/hass/` runs that way: the engine, the physics, the property
+tests, the mapping layer, storage, presentation and the calibration maths. `tests/hass/` runs in
+CI on Linux.
 
 ### Only the engine
 
