@@ -211,7 +211,7 @@ class NotificationManager:
 
 def _actions(rec: Recommendation, language: str) -> list[dict[str, str]]:
     done = "Erledigt" if language == "de" else "Done"
-    snooze = "1 h spaeter" if language == "de" else "Snooze 1 h"
+    snooze = "1 h später" if language == "de" else "Snooze 1 h"
     ignore = "Heute ignorieren" if language == "de" else "Ignore today"
     return [
         {"action": f"{ACTION_ACKNOWLEDGE}|{rec.id}", "title": done},

@@ -316,22 +316,62 @@ def panel_payload(coordinator: Any) -> dict[str, Any]:
 
 
 def weak_spots(coordinator: Any, result: EvaluationResult) -> list[dict[str, Any]]:
-    """Which window costs the most Kelvin per day - the balance tab report."""
+    """Which window costs the most Kelvin per day - the balance tab report.
+
+    Deliberately based on the energy over a *whole day*, not on the watts
+    hitting the glass right now: the report is most interesting in the evening
+    after a hot day, and at that point every instantaneous value is zero.
+    """
+    from .engine import solar as solar_mod
+    from .engine import thermal
+    from .engine.state import RoomState, WindowState
+
+    world: WorldState | None = coordinator.world
     loads: Mapping[str, float] = result.diagnostics.get("solar_loads", {})
+    building = world.building if world else None
+    day_start = result.now.replace(hour=0, minute=0, second=0, microsecond=0)
+    cloud = world.outdoor.cloud_coverage if world else None
+
     spots: list[dict[str, Any]] = []
     for config in coordinator.config.windows:
         room = coordinator.config.room(config.room_id)
         if room is None:
             continue
-        # Six hours of peak load spread over the room's heat capacity.
-        daily_k = loads.get(config.id, 0.0) * 6.0 / max(room.volume_m3 * 18.0, 1.0)
+
+        probe_window = (world.window(config.id) if world else None) or WindowState(
+            id=config.id,
+            name=config.name,
+            room_id=config.room_id,
+            azimuth=config.azimuth,
+            area_m2=config.area_m2,
+            g_value=config.g_value,
+            horizon_profile=config.horizon_profile,
+        )
+        kwh = solar_mod.daily_solar_energy_kwh(
+            probe_window,
+            day_start,
+            building.latitude if building else 50.0,
+            building.longitude if building else 8.0,
+            cloud,
+        )
+        capacity = thermal.thermal_capacity_wh_per_k(
+            RoomState(id=room.id, name=room.name, volume_m3=room.volume_m3), building
+        )
+        daily_k = kwh * 1000.0 / max(capacity, 1.0)
+        # A cover only pays off for the share it actually stops.
+        avoidable_k = daily_k * (
+            probe_window.cover_shading_efficiency if config.cover_entity else 0.0
+        )
+
         spots.append(
             {
                 "window_id": config.id,
                 "window": config.name,
                 "room": room.name,
                 "load_w": round(loads.get(config.id, 0.0)),
+                "daily_kwh": round(kwh, 2),
                 "daily_k": round(daily_k, 2),
+                "avoidable_k": round(avoidable_k, 2),
                 "has_cover": bool(config.cover_entity),
                 "cover_external": config.cover_external,
             }

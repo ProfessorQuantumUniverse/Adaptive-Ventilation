@@ -76,6 +76,7 @@ def _register_websocket_api(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_panel_data)
     websocket_api.async_register_command(hass, ws_action)
     websocket_api.async_register_command(hass, ws_simulate)
+    websocket_api.async_register_command(hass, ws_preview)
 
 
 def _entries(hass: HomeAssistant) -> list[Any]:
@@ -180,6 +181,67 @@ async def ws_action(
         return
 
     connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/preview",
+        vol.Optional("entry_id"): str,
+        vol.Required("preferences"): dict,
+    }
+)
+@websocket_api.async_response
+async def ws_preview(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Re-run the engine with candidate settings without saving anything.
+
+    This makes tuning a game instead of a guessing game: move a slider and see
+    immediately what the current situation would look like. Note that this is a
+    *now* preview - for a real "4 instead of 9 notifications yesterday" replay
+    over recorder history use ``scripts/replay.py``.
+    """
+    from dataclasses import replace as _replace
+
+    from .engine import evaluate as _evaluate
+    from .engine.state import EngineMemory
+    from .models import build_preferences
+
+    coordinator = _coordinator(hass, msg.get("entry_id"))
+    if coordinator is None or coordinator.world is None:
+        connection.send_error(msg["id"], "not_ready", "no world state yet")
+        return
+
+    candidate = dict(coordinator.config_entry.options)
+    candidate.update(msg["preferences"])
+
+    def _run() -> dict[str, Any]:
+        current = _evaluate(coordinator.world, EngineMemory())
+        proposed = _evaluate(
+            _replace(coordinator.world, preferences=build_preferences(candidate)),
+            EngineMemory(),
+        )
+        return {
+            "current": _summary(current),
+            "proposed": _summary(proposed),
+        }
+
+    try:
+        connection.send_result(msg["id"], await hass.async_add_executor_job(_run))
+    except Exception as err:  # noqa: BLE001
+        connection.send_error(msg["id"], "preview_failed", str(err))
+
+
+def _summary(result: Any) -> dict[str, Any]:
+    from .engine.state import Action
+
+    actionable = [r for r in result.recommendations if r.action is not Action.NO_ACTION]
+    return {
+        "status": result.global_state.value,
+        "notifications": sum(1 for r in actionable if r.notify),
+        "recommendations": len(actionable),
+        "rules": sorted({r.rule_id for r in actionable if r.rule_id}),
+    }
 
 
 @websocket_api.websocket_command(
