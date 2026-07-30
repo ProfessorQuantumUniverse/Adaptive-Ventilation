@@ -1,0 +1,99 @@
+[project]
+name = "adaptive-ventilation"
+version = "1.0.0"
+description = "Adaptive Ventilation for Home Assistant - tells you when to open which window"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { file = "LICENSE" }
+authors = [{ name = "ProfessorQuantumUniverse" }]
+
+[project.urls]
+Homepage = "https://github.com/ProfessorQuantumUniverse/Adaptive-Ventilation"
+Issues = "https://github.com/ProfessorQuantumUniverse/Adaptive-Ventilation/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--strict-markers"
+markers = [
+  "requires_hass: needs pytest-homeassistant-custom-component and a POSIX platform",
+]
+filterwarnings = [
+  "ignore::DeprecationWarning:homeassistant.*",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["custom_components", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes
+  "I",    # isort
+  "B",    # bugbear
+  "C4",   # comprehensions
+  "UP",   # pyupgrade
+  "SIM",  # simplify
+  "RUF",  # ruff specific
+  "PL",   # pylint
+  "ASYNC",
+  "D",    # pydocstyle
+]
+ignore = [
+  "D203",    # incompatible with D211
+  "D213",    # incompatible with D212
+  "D401",    # imperative mood is not always the clearest
+  "PLR0911", # rules legitimately have many exits
+  "PLR0912", # ... and many branches
+  "PLR0913", # dataclass-ish constructors take many arguments
+  "PLR0915",
+  "PLR2004", # magic values are the whole point of a physics module
+  "SIM108",  # ternaries are not always clearer
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D100", "D101", "D102", "D103", "D104", "PLR2004", "E501"]
+"scripts/**" = ["D103", "T201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["adaptive_ventilation"]
+force-sort-within-sections = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.mypy]
+python_version = "3.13"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+
+# The engine is the part that has to be provably correct, so it gets the full
+# strict treatment. The Home Assistant layer is plumbing against an untyped-ish
+# API and is checked less aggressively.
+[[tool.mypy.overrides]]
+module = "adaptive_ventilation.engine.*"
+strict = true
+disallow_any_generics = true
+warn_return_any = true
+
+[[tool.mypy.overrides]]
+module = ["homeassistant.*", "voluptuous.*", "yaml.*", "pytest_homeassistant_custom_component.*"]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["custom_components/adaptive_ventilation"]
+omit = ["custom_components/adaptive_ventilation/frontend/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]

@@ -1,0 +1,160 @@
+start_purge:
+  fields:
+    entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: adaptive_ventilation
+    room:
+      required: false
+      example: Bedroom
+      selector:
+        text:
+    duration:
+      required: false
+      example: 8
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: min
+          mode: box
+
+snooze:
+  fields:
+    entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: adaptive_ventilation
+    recommendation_id:
+      required: false
+      example: night_flush:bedroom_east
+      selector:
+        text:
+    scope:
+      required: false
+      default: "1h"
+      selector:
+        select:
+          translation_key: snooze_scope
+          options:
+            - "1h"
+            - until_evening
+            - today
+            - all_1h
+
+acknowledge:
+  fields:
+    entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: adaptive_ventilation
+    recommendation_id:
+      required: true
+      example: night_flush:bedroom_east
+      selector:
+        text:
+
+set_mode:
+  fields:
+    entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: adaptive_ventilation
+    mode:
+      required: true
+      selector:
+        select:
+          translation_key: mode
+          options:
+            - auto
+            - summer
+            - winter
+            - away
+            - "off"
+
+recalibrate:
+  fields:
+    entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: adaptive_ventilation
+
+override_parameter:
+  fields:
+    entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: adaptive_ventilation
+    room:
+      required: true
+      example: Bedroom
+      selector:
+        text:
+    parameter:
+      required: true
+      selector:
+        select:
+          translation_key: learned_parameter
+          options:
+            - tau_hours
+            - night_cooling_k_per_h
+            - solar_gain_coefficient
+            - internal_gain_w
+            - air_changes_per_hour
+    value:
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 500
+          step: 0.1
+          mode: box
+    reset:
+      required: false
+      default: false
+      selector:
+        boolean:
+
+export_diagnostics:
+  fields:
+    entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: adaptive_ventilation
+
+simulate:
+  fields:
+    entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: adaptive_ventilation
+    room:
+      required: true
+      example: Living room
+      selector:
+        text:
+    window:
+      required: false
+      selector:
+        text:
+          multiple: true
+    start:
+      required: false
+      selector:
+        datetime:
+    end:
+      required: false
+      selector:
+        datetime:
+    shading_from:
+      required: false
+      selector:
+        datetime:

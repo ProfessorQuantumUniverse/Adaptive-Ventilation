@@ -1,0 +1,587 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Adaptive Ventilation",
+        "description": "Erst mal nur die Wetterquelle. Alles Weitere kommt danach – Räume und Fenster werden anschließend als Untereinträge angelegt.",
+        "data": {
+          "title": "Name",
+          "weather_entity": "Wetter-Entität (Stundenvorhersage)",
+          "outdoor_temperature_sensor": "Außentemperatur-Sensor",
+          "outdoor_humidity_sensor": "Außenfeuchte-Sensor",
+          "building_type": "Gebäudetyp"
+        },
+        "data_description": {
+          "weather_entity": "Braucht eine stündliche Vorhersage. Ohne sie gibt es keine Kipppunkte und keinen 24-h-Fahrplan.",
+          "outdoor_temperature_sensor": "Ein eigener Sensor ist besser als der Wetterdienst – er darf aber nicht in der Sonne stehen.",
+          "building_type": "Dient nur als Startwert für das thermische Modell und wird später durch Messwerte ersetzt."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Diese Wohnung ist bereits eingerichtet."
+    }
+  },
+  "config_subentries": {
+    "room": {
+      "title": "Raum",
+      "initiate_flow": {
+        "user": "Raum hinzufügen",
+        "reconfigure": "Raum bearbeiten"
+      },
+      "entry_type": "Raum",
+      "step": {
+        "user": {
+          "title": "Raum hinzufügen",
+          "description": "Ein Raum ohne Sensoren funktioniert auch – er wird dann geschätzt, bekommt einen Confidence-Wert und löst nie eine Push-Benachrichtigung aus.",
+          "data": {
+            "name": "Name",
+            "temperature_sensor": "Temperatursensor",
+            "humidity_sensor": "Feuchtesensor",
+            "priority": "Priorität (1 = wichtigster Raum)"
+          },
+          "data_description": {
+            "priority": "Das Schlafzimmer sollte nachts vor dem Rest der Wohnung kommen."
+          },
+          "sections": {
+            "advanced": {
+              "name": "Erweitert",
+              "description": "Alles Optionale: weitere Sensoren, Geometrie, Zielband, Raum-Flags.",
+              "data": {
+                "co2_sensor": "CO₂-Sensor",
+                "voc_sensor": "VOC-Sensor",
+                "pm25_sensor": "PM2.5-Sensor",
+                "occupancy_sensor": "Präsenzsensor",
+                "climate_entity": "Heizung / Climate-Entität",
+                "fan_entity": "Ventilator",
+                "power_sensor": "Leistungsmessung (Ofen, Trockner, Gaming-PC)",
+                "volume_m3": "Raumvolumen",
+                "floor_area_m2": "Grundfläche",
+                "ceiling_height_m": "Raumhöhe",
+                "target_min": "Zieltemperatur, untere Grenze",
+                "target_max": "Zieltemperatur, obere Grenze",
+                "is_bedroom": "Schlafzimmer",
+                "is_moisture_source": "Feuchtequelle (Bad, Küche)",
+                "is_basement": "Keller",
+                "is_unheated": "Unbeheizt",
+                "is_top_floor": "Dachgeschoss",
+                "connected_rooms": "Verbundene Räume (für Querlüftung)",
+                "estimation": "Schätzverfahren ohne Sensor",
+                "reference_room": "Referenzraum",
+                "reference_offset": "Offset zum Referenzraum"
+              },
+              "data_description": {
+                "volume_m3": "Entweder direkt das Volumen oder Grundfläche und Raumhöhe.",
+                "connected_rooms": "Räume, deren Türen üblicherweise offen stehen. Zwei offene Fenster auf gegenüberliegenden Seiten in verbundenen Räumen bringen den drei- bis fünffachen Luftwechsel.",
+                "reference_offset": "Zum Beispiel +3 K fürs Dachgeschoss."
+              }
+            }
+          }
+        },
+        "reconfigure": {
+          "title": "Raum bearbeiten",
+          "description": "Ein Raum ohne Sensoren funktioniert auch – er wird dann geschätzt, bekommt einen Confidence-Wert und löst nie eine Push-Benachrichtigung aus.",
+          "data": {
+            "name": "Name",
+            "temperature_sensor": "Temperatursensor",
+            "humidity_sensor": "Feuchtesensor",
+            "priority": "Priorität (1 = wichtigster Raum)"
+          },
+          "sections": {
+            "advanced": {
+              "name": "Erweitert",
+              "data": {
+                "co2_sensor": "CO₂-Sensor",
+                "voc_sensor": "VOC-Sensor",
+                "pm25_sensor": "PM2.5-Sensor",
+                "occupancy_sensor": "Präsenzsensor",
+                "climate_entity": "Heizung / Climate-Entität",
+                "fan_entity": "Ventilator",
+                "power_sensor": "Leistungsmessung (Ofen, Trockner, Gaming-PC)",
+                "volume_m3": "Raumvolumen",
+                "floor_area_m2": "Grundfläche",
+                "ceiling_height_m": "Raumhöhe",
+                "target_min": "Zieltemperatur, untere Grenze",
+                "target_max": "Zieltemperatur, obere Grenze",
+                "is_bedroom": "Schlafzimmer",
+                "is_moisture_source": "Feuchtequelle (Bad, Küche)",
+                "is_basement": "Keller",
+                "is_unheated": "Unbeheizt",
+                "is_top_floor": "Dachgeschoss",
+                "connected_rooms": "Verbundene Räume (für Querlüftung)",
+                "estimation": "Schätzverfahren ohne Sensor",
+                "reference_room": "Referenzraum",
+                "reference_offset": "Offset zum Referenzraum"
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "required": "Dieses Feld ist erforderlich.",
+        "reference_room_required": "Für die Offset-Schätzung wird ein Referenzraum gebraucht.",
+        "target_band_invalid": "Die untere Grenze muss unter der oberen liegen."
+      },
+      "abort": {
+        "reconfigure_successful": "Raum aktualisiert."
+      }
+    },
+    "window": {
+      "title": "Fenster",
+      "initiate_flow": {
+        "user": "Fenster hinzufügen",
+        "reconfigure": "Fenster bearbeiten"
+      },
+      "entry_type": "Fenster",
+      "step": {
+        "user": {
+          "title": "Fenster hinzufügen",
+          "description": "Die Ausrichtung ist wichtig: Aus dem Azimut wird die Solarlast berechnet. Für den Anfang reicht die grobe Himmelsrichtung.",
+          "data": {
+            "name": "Name",
+            "room": "Raum",
+            "contact_sensor": "Kontaktsensor",
+            "orientation": "Ausrichtung"
+          },
+          "data_description": {
+            "orientation": "Himmelsrichtung wählen – oder „Eigener Azimut“ und den genauen Wert unter „Erweitert“ eintragen."
+          },
+          "sections": {
+            "advanced": {
+              "name": "Erweitert",
+              "description": "Genauer Azimut, Fläche, Rollladen und die Sicherheits-Flags.",
+              "data": {
+                "azimuth": "Azimut (0 = Nord, 90 = Ost, 180 = Süd)",
+                "area_m2": "Fensterfläche",
+                "tilt_sensor": "Separater Kipp-Sensor",
+                "tilt_capable": "Kippbar",
+                "g_value": "g-Wert der Verglasung",
+                "cover_entity": "Rollladen / Jalousie",
+                "cover_external": "Außenliegend",
+                "cover_auto_allowed": "Darf automatisch gesteuert werden",
+                "is_ground_floor": "Erdgeschoss",
+                "ok_when_away": "Darf bei Abwesenheit offen bleiben",
+                "rain_safe": "Darf bei Regen offen bleiben"
+              },
+              "data_description": {
+                "cover_external": "Außenliegende Rollläden halten rund 80 % des Eintrags ab, innenliegende nur etwa 30 %.",
+                "cover_auto_allowed": "Standardmäßig aus. Ohne diesen Haken wird ausschließlich empfohlen."
+              }
+            }
+          }
+        },
+        "reconfigure": {
+          "title": "Fenster bearbeiten",
+          "description": "Die Ausrichtung ist wichtig: Aus dem Azimut wird die Solarlast berechnet. Für den Anfang reicht die grobe Himmelsrichtung.",
+          "data": {
+            "name": "Name",
+            "room": "Raum",
+            "contact_sensor": "Kontaktsensor",
+            "orientation": "Ausrichtung"
+          },
+          "sections": {
+            "advanced": {
+              "name": "Erweitert",
+              "data": {
+                "azimuth": "Azimut (0 = Nord, 90 = Ost, 180 = Süd)",
+                "area_m2": "Fensterfläche",
+                "tilt_sensor": "Separater Kipp-Sensor",
+                "tilt_capable": "Kippbar",
+                "g_value": "g-Wert der Verglasung",
+                "cover_entity": "Rollladen / Jalousie",
+                "cover_external": "Außenliegend",
+                "cover_auto_allowed": "Darf automatisch gesteuert werden",
+                "is_ground_floor": "Erdgeschoss",
+                "ok_when_away": "Darf bei Abwesenheit offen bleiben",
+                "rain_safe": "Darf bei Regen offen bleiben"
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "required": "Dieses Feld ist erforderlich.",
+        "cover_required": "Für die Automatik wird eine Rollladen-Entität gebraucht."
+      },
+      "abort": {
+        "no_rooms": "Zuerst einen Raum anlegen – ein Fenster gehört immer zu einem.",
+        "reconfigure_successful": "Fenster aktualisiert."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Adaptive Ventilation",
+        "menu_options": {
+          "sources": "Datenquellen",
+          "building": "Gebäude",
+          "notifications": "Benachrichtigungen",
+          "weights": "Prioritäten",
+          "thresholds": "Schwellwerte und Ruhe"
+        }
+      },
+      "sources": {
+        "title": "Datenquellen",
+        "data": {
+          "weather_entity": "Wetter-Entität (Stundenvorhersage)",
+          "outdoor_temperature_sensor": "Außentemperatur-Sensor",
+          "outdoor_humidity_sensor": "Außenfeuchte-Sensor",
+          "outdoor_pm25_sensor": "PM2.5 außen",
+          "outdoor_pm10_sensor": "PM10 außen",
+          "weather_alert_entity": "Wetterwarnungen (DWD / Meteoalarm)",
+          "illuminance_sensor": "Helligkeitssensor",
+          "sun_entity": "Sonnen-Entität",
+          "presence_entity": "Anwesenheit"
+        }
+      },
+      "building": {
+        "title": "Gebäude",
+        "description": "Diese Werte sind nur Startwerte für das thermische Modell. Sobald genug Historie da ist, werden sie durch gemessene ersetzt.",
+        "data": {
+          "building_type": "Gebäudetyp",
+          "construction_year": "Baujahr",
+          "floor": "Etage",
+          "top_floor": "Dachgeschoss",
+          "f_rt": "Temperaturfaktor f_Rsi (überschreiben)"
+        },
+        "data_description": {
+          "f_rt": "0,30–0,40 Altbau ungedämmt, 0,20 saniert, 0,10–0,13 Neubau gedämmt."
+        }
+      },
+      "notifications": {
+        "title": "Benachrichtigungen",
+        "description": "Ein System, das dauernd summt, wird stummgeschaltet. Weniger, aber besser getimte Meldungen gewinnen.",
+        "data": {
+          "notify_targets": "Benachrichtigungsziele",
+          "actionable_notifications": "Actionable Notifications (Erledigt / Snooze)",
+          "quiet_hours_start": "Ruhezeit ab",
+          "quiet_hours_end": "Ruhezeit bis",
+          "max_pushes_per_day": "Maximale Pushes pro Tag",
+          "notification_restraint": "Zurückhaltung (0 = alles, 100 = nur Wichtiges)",
+          "min_confidence_for_push": "Mindest-Confidence für einen Push",
+          "cover_automation": "Rollläden automatisch fahren"
+        },
+        "data_description": {
+          "quiet_hours_start": "Nur SAFETY-Empfehlungen durchbrechen die Ruhezeit.",
+          "min_confidence_for_push": "Geschätzte Räume liegen darunter und werden nur im Panel angezeigt.",
+          "cover_automation": "Gilt nur für Fenster, bei denen die Automatik ausdrücklich erlaubt ist."
+        }
+      },
+      "weights": {
+        "title": "Prioritäten",
+        "description": "Vier Achsen, jede kann Lüften fordern oder verbieten. 50 ist neutral.",
+        "data": {
+          "weight_temperature": "Temperatur",
+          "weight_humidity": "Feuchte",
+          "weight_co2": "CO₂",
+          "weight_particulate": "Feinstaub"
+        }
+      },
+      "thresholds": {
+        "title": "Schwellwerte und Ruhe",
+        "data": {
+          "summer_target_min": "Sommer-Ziel, untere Grenze",
+          "summer_target_max": "Sommer-Ziel, obere Grenze",
+          "winter_target_min": "Winter-Ziel, untere Grenze",
+          "winter_target_max": "Winter-Ziel, obere Grenze",
+          "humidity_target_min": "Feuchte-Ziel, untere Grenze",
+          "humidity_target_max": "Feuchte-Ziel, obere Grenze",
+          "co2_threshold": "CO₂-Schwelle",
+          "pm25_indoor_threshold": "PM2.5 innen",
+          "pm25_outdoor_threshold": "PM2.5 außen",
+          "storm_wind_kmh": "Sturmschwelle",
+          "tropical_night_threshold": "Tropennacht ab",
+          "delta_t_hysteresis": "ΔT-Hysterese",
+          "min_state_duration_minutes": "Mindest-Verweildauer",
+          "cooldown_minutes": "Cooldown pro Empfehlung",
+          "close_lead_time_minutes": "Vorlaufzeit vor dem Kipppunkt"
+        },
+        "data_description": {
+          "delta_t_hysteresis": "Das Totband ist dreimal so breit wie dieser Wert – damit flattert die Empfehlung bei ΔT ≈ 0 nicht.",
+          "close_lead_time_minutes": "„In 30 Minuten zumachen“ statt einer Meldung, die zu spät kommt."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Nichts zu tun",
+          "ventilate_now": "Jetzt lüften",
+          "keep_closed": "Geschlossen halten",
+          "heat_protection": "Hitzeschutz",
+          "night_flush": "Nachtlüftung",
+          "purge_running": "Stoßlüften läuft",
+          "storm": "Sturm",
+          "air_quality": "Luftqualität",
+          "away": "Abwesend",
+          "off": "Aus",
+          "unavailable_data": "Keine brauchbaren Daten"
+        }
+      },
+      "next_action": { "name": "Nächste Aktion" },
+      "tipping_point_morning": { "name": "Kipppunkt morgens" },
+      "tipping_point_evening": { "name": "Kipppunkt abends" },
+      "cooling_budget_today": { "name": "Kühlbudget heute Nacht" },
+      "cooling_balance_3d": { "name": "Kühlbilanz, 3 Tage" },
+      "open_windows_count": { "name": "Offene Fenster" },
+      "absolute_humidity": { "name": "Absolute Feuchte" },
+      "dew_point": { "name": "Taupunkt" },
+      "enthalpy": { "name": "Enthalpie" },
+      "mold_risk": {
+        "name": "Schimmelrisiko",
+        "state": {
+          "none": "Keins",
+          "low": "Gering",
+          "moderate": "Mäßig",
+          "high": "Hoch",
+          "condensation": "Kondensation"
+        }
+      },
+      "wall_surface_temperature": { "name": "Wandoberflächentemperatur" },
+      "heating_rate": { "name": "Temperaturtrend" },
+      "air_quality_score": { "name": "Luftqualitäts-Score" },
+      "temperature_estimated": { "name": "Temperatur (geschätzt)" },
+      "recommendation": {
+        "name": "Empfehlung",
+        "state": {
+          "open_wide": "Weit öffnen",
+          "open_tilt": "Kippen",
+          "purge": "Stoßlüften",
+          "cross_ventilate": "Querlüften",
+          "close": "Schließen",
+          "keep_closed": "Geschlossen halten",
+          "keep_open": "Offen lassen",
+          "cover_down": "Rollladen runter",
+          "cover_up": "Rollladen hoch",
+          "cover_slat": "Rollladen teilweise runter",
+          "fan_on": "Ventilator an",
+          "no_action": "Nichts zu tun"
+        }
+      },
+      "solar_load": { "name": "Solarlast" }
+    },
+    "binary_sensor": {
+      "action_required": { "name": "Handlungsbedarf" },
+      "storm_risk": { "name": "Sturmrisiko" },
+      "purge_running": { "name": "Stoßlüften läuft" },
+      "should_be_open": { "name": "Sollte offen sein" }
+    },
+    "select": {
+      "mode": {
+        "name": "Modus",
+        "state": {
+          "auto": "Automatik",
+          "summer": "Sommer",
+          "winter": "Winter",
+          "away": "Abwesend",
+          "off": "Aus",
+          "manual_hold": "Manuell gehalten"
+        }
+      }
+    },
+    "number": {
+      "weight_temperature": { "name": "Gewichtung: Temperatur" },
+      "weight_humidity": { "name": "Gewichtung: Feuchte" },
+      "weight_co2": { "name": "Gewichtung: CO₂" },
+      "weight_particulate": { "name": "Gewichtung: Feinstaub" },
+      "summer_target_min": { "name": "Sommer-Ziel, untere Grenze" },
+      "summer_target_max": { "name": "Sommer-Ziel, obere Grenze" },
+      "winter_target_min": { "name": "Winter-Ziel, untere Grenze" },
+      "winter_target_max": { "name": "Winter-Ziel, obere Grenze" },
+      "co2_threshold": { "name": "CO₂-Schwelle" },
+      "pm25_indoor_threshold": { "name": "PM2.5-Schwelle innen" },
+      "delta_t_hysteresis": { "name": "ΔT-Hysterese" },
+      "min_state_duration_minutes": { "name": "Mindest-Verweildauer" },
+      "cooldown_minutes": { "name": "Cooldown" },
+      "close_lead_time_minutes": { "name": "Vorlaufzeit zum Schließen" },
+      "max_pushes_per_day": { "name": "Maximale Pushes pro Tag" }
+    },
+    "switch": {
+      "notifications": { "name": "Benachrichtigungen" },
+      "cover_automation": { "name": "Rollladen-Automatik" },
+      "actionable_notifications": { "name": "Actionable Notifications" }
+    },
+    "button": {
+      "purge_now": { "name": "Jetzt stoßlüften" },
+      "snooze_1h": { "name": "1 h Ruhe" },
+      "recalibrate": { "name": "Neu kalibrieren" },
+      "purge_room": { "name": "Diesen Raum stoßlüften" }
+    },
+    "text": {
+      "display_line1": { "name": "Displayzeile 1" },
+      "display_line2": { "name": "Displayzeile 2" },
+      "display_line3": { "name": "Displayzeile 3" }
+    }
+  },
+  "selector": {
+    "building_type": {
+      "options": {
+        "old_massive": "Altbau massiv, ungedämmt",
+        "old_renovated": "Altbau saniert",
+        "new_insulated": "Neubau gedämmt, massiv",
+        "lightweight": "Leichtbau / Dachgeschoss",
+        "half_timbered": "Fachwerk",
+        "unknown": "Weiß ich nicht"
+      }
+    },
+    "estimation": {
+      "options": {
+        "measured": "Gemessen (Sensor vorhanden)",
+        "reference_offset": "Referenzraum plus Offset",
+        "model": "Modellbasiert"
+      }
+    },
+    "orientation": {
+      "options": {
+        "n": "Norden",
+        "ne": "Nordosten",
+        "e": "Osten",
+        "se": "Südosten",
+        "s": "Süden",
+        "sw": "Südwesten",
+        "w": "Westen",
+        "nw": "Nordwesten",
+        "custom": "Eigener Azimut"
+      }
+    },
+    "mode": {
+      "options": {
+        "auto": "Automatik",
+        "summer": "Sommer",
+        "winter": "Winter",
+        "away": "Abwesend",
+        "off": "Aus"
+      }
+    },
+    "snooze_scope": {
+      "options": {
+        "1h": "Eine Stunde",
+        "until_evening": "Bis heute Abend",
+        "today": "Heute",
+        "all_1h": "Alles für eine Stunde"
+      }
+    },
+    "learned_parameter": {
+      "options": {
+        "tau_hours": "Zeitkonstante τ",
+        "night_cooling_k_per_h": "Nachtauskühl-Rate",
+        "solar_gain_coefficient": "Solargewinn-Koeffizient",
+        "internal_gain_w": "Interne Lasten",
+        "air_changes_per_hour": "Luftwechselrate"
+      }
+    }
+  },
+  "services": {
+    "start_purge": {
+      "name": "Stoßlüften starten",
+      "description": "Startet einen Stoßlüft-Timer mit der für die aktuelle Außentemperatur berechneten Dauer.",
+      "fields": {
+        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
+        "room": { "name": "Raum", "description": "Raumname oder Untereintrags-ID. Leer bedeutet alle Räume." },
+        "duration": { "name": "Dauer", "description": "Überschreibt die berechnete Dauer." }
+      }
+    },
+    "snooze": {
+      "name": "Stummschalten",
+      "description": "Schaltet eine Empfehlung oder alle für eine Weile stumm.",
+      "fields": {
+        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
+        "recommendation_id": { "name": "Empfehlung", "description": "Leer bedeutet alle aktuellen Empfehlungen." },
+        "scope": { "name": "Dauer", "description": "Wie lange Ruhe sein soll." }
+      }
+    },
+    "acknowledge": {
+      "name": "Erledigt melden",
+      "description": "Markiert eine Empfehlung als erledigt: startet den Cooldown und liefert ein Lernsignal.",
+      "fields": {
+        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
+        "recommendation_id": { "name": "Empfehlung", "description": "Die ID aus den Entitäts-Attributen." }
+      }
+    },
+    "set_mode": {
+      "name": "Modus setzen",
+      "description": "Wechselt zwischen Automatik, Sommer, Winter, Abwesend und Aus.",
+      "fields": {
+        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
+        "mode": { "name": "Modus", "description": "Der neue Modus." }
+      }
+    },
+    "recalibrate": {
+      "name": "Neu kalibrieren",
+      "description": "Führt die Selbstkalibrierung gegen die Recorder-Historie sofort aus.",
+      "fields": {
+        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." }
+      }
+    },
+    "override_parameter": {
+      "name": "Gelernten Wert überschreiben",
+      "description": "Überschreibt oder setzt einen selbstkalibrierten Parameter zurück.",
+      "fields": {
+        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
+        "room": { "name": "Raum", "description": "Raumname oder Untereintrags-ID." },
+        "parameter": { "name": "Parameter", "description": "Welcher gelernte Wert geändert wird." },
+        "value": { "name": "Wert", "description": "Der neue Wert." },
+        "reset": { "name": "Zurücksetzen", "description": "Override verwerfen und wieder lernen lassen." }
+      }
+    },
+    "export_diagnostics": {
+      "name": "Diagnose exportieren",
+      "description": "Gibt den kompletten internen Zustand als Service-Antwort zurück – praktisch für Fehlerberichte.",
+      "fields": {
+        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." }
+      }
+    },
+    "simulate": {
+      "name": "Simulieren",
+      "description": "Was wäre wenn: Fenster X von t1 bis t2 offen – erwartete Kurve im Vergleich zu „nichts tun“.",
+      "fields": {
+        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
+        "room": { "name": "Raum", "description": "Welcher Raum simuliert wird." },
+        "window": { "name": "Fenster", "description": "Welche Fenster geöffnet werden. Leer bedeutet alle." },
+        "start": { "name": "Offen ab", "description": "Beginn des Lüftungsfensters." },
+        "end": { "name": "Offen bis", "description": "Ende des Lüftungsfensters." },
+        "shading_from": { "name": "Verschattung ab", "description": "Ab wann die Rollläden runterfahren." }
+      }
+    }
+  },
+  "issues": {
+    "outdoor_sensor_in_sun": {
+      "title": "Außensensor steht vermutlich in der Sonne",
+      "description": "Der Außensensor liegt bei Sonnenschein {delta} K über dem Wetterdienst. Das verzerrt jeden ΔT-Vergleich. Sensor in den Schatten hängen oder die Wetter-Entität als Temperaturquelle verwenden."
+    },
+    "no_hourly_forecast": {
+      "title": "Keine Stundenvorhersage",
+      "description": "Die konfigurierte Wetter-Entität liefert keine stündliche Vorhersage. Ohne sie gibt es keine Kipppunkte, keinen 24-h-Fahrplan und kein Vorkühlen. Bitte eine Wetter-Integration mit Stundenvorhersage wählen."
+    },
+    "no_rooms_configured": {
+      "title": "Keine Räume konfiguriert",
+      "description": "Adaptive Ventilation braucht mindestens einen Raum. Auf der Integrationsseite über „Raum hinzufügen“ anlegen."
+    },
+    "no_windows_configured": {
+      "title": "Keine Fenster konfiguriert",
+      "description": "Ohne Fenster gibt es nichts zu empfehlen. Mindestens ein Fenster mit Kontaktsensor anlegen."
+    },
+    "missing_entity": {
+      "title": "Konfigurierte Entität fehlt",
+      "description": "Eine von Adaptive Ventilation genutzte Entität existiert nicht mehr: {entity_id}. Bitte die Konfiguration anpassen."
+    }
+  },
+  "exceptions": {
+    "no_entry_found": {
+      "message": "Keine geladene Adaptive-Ventilation-Konfiguration gefunden."
+    },
+    "entry_id_required": {
+      "message": "Es sind mehrere Konfigurationen geladen – bitte angeben, welche gemeint ist."
+    },
+    "unknown_room": {
+      "message": "Unbekannter Raum: {room}"
+    },
+    "unknown_window": {
+      "message": "Unbekanntes Fenster: {window}"
+    }
+  }
+}

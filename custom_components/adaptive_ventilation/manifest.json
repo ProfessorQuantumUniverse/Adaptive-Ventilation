@@ -1,0 +1,15 @@
+{
+  "domain": "adaptive_ventilation",
+  "name": "Adaptive Ventilation",
+  "codeowners": ["@ProfessorQuantumUniverse"],
+  "config_flow": true,
+  "dependencies": ["http", "frontend", "sun"],
+  "after_dependencies": ["weather", "recorder", "notify", "mobile_app"],
+  "documentation": "https://github.com/ProfessorQuantumUniverse/Adaptive-Ventilation",
+  "integration_type": "hub",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/ProfessorQuantumUniverse/Adaptive-Ventilation/issues",
+  "quality_scale": "silver",
+  "requirements": [],
+  "version": "1.0.0"
+}

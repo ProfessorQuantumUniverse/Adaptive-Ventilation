@@ -1,0 +1,742 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Adaptive Ventilation",
+        "description": "Point it at your weather source. Everything else can be added afterwards - rooms and windows are added as subentries once this is done.",
+        "data": {
+          "title": "Name",
+          "weather_entity": "Weather entity (hourly forecast)",
+          "outdoor_temperature_sensor": "Outdoor temperature sensor",
+          "outdoor_humidity_sensor": "Outdoor humidity sensor",
+          "building_type": "Building type"
+        },
+        "data_description": {
+          "weather_entity": "Needs an hourly forecast. Without it there are no tipping points and no 24 h plan.",
+          "outdoor_temperature_sensor": "Your own sensor is preferred over the weather service. Make sure it is not in direct sun.",
+          "building_type": "Only used as a starting value for the thermal model - it is replaced by measurements later."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This flat is already configured."
+    }
+  },
+  "config_subentries": {
+    "room": {
+      "title": "Room",
+      "initiate_flow": {
+        "user": "Add room",
+        "reconfigure": "Edit room"
+      },
+      "entry_type": "Room",
+      "step": {
+        "user": {
+          "title": "Add room",
+          "description": "A room without sensors still works - it is then estimated with a confidence value and never triggers push notifications.",
+          "data": {
+            "name": "Name",
+            "temperature_sensor": "Temperature sensor",
+            "humidity_sensor": "Humidity sensor",
+            "priority": "Priority (1 = most important)"
+          },
+          "data_description": {
+            "priority": "The bedroom at night should outrank the rest of the flat."
+          },
+          "sections": {
+            "advanced": {
+              "name": "Advanced",
+              "description": "Everything optional: extra sensors, geometry, comfort band, room flags.",
+              "data": {
+                "co2_sensor": "CO₂ sensor",
+                "voc_sensor": "VOC sensor",
+                "pm25_sensor": "PM2.5 sensor",
+                "occupancy_sensor": "Presence sensor",
+                "climate_entity": "Heating / climate entity",
+                "fan_entity": "Fan",
+                "power_sensor": "Power meter (oven, dryer, gaming PC)",
+                "volume_m3": "Room volume",
+                "floor_area_m2": "Floor area",
+                "ceiling_height_m": "Ceiling height",
+                "target_min": "Target temperature, lower bound",
+                "target_max": "Target temperature, upper bound",
+                "is_bedroom": "Bedroom",
+                "is_moisture_source": "Moisture source (bathroom, kitchen)",
+                "is_basement": "Basement",
+                "is_unheated": "Unheated",
+                "is_top_floor": "Top floor / attic",
+                "connected_rooms": "Connected rooms (for cross ventilation)",
+                "estimation": "Estimation method without a sensor",
+                "reference_room": "Reference room",
+                "reference_offset": "Offset from the reference room"
+              },
+              "data_description": {
+                "volume_m3": "Either the volume directly, or floor area and ceiling height.",
+                "connected_rooms": "Rooms whose doors are usually open. Two open windows on opposite facades in connected rooms give three to five times the air exchange.",
+                "reference_offset": "For example +3 K for the attic."
+              }
+            }
+          }
+        },
+        "reconfigure": {
+          "title": "Edit room",
+          "description": "A room without sensors still works - it is then estimated with a confidence value and never triggers push notifications.",
+          "data": {
+            "name": "Name",
+            "temperature_sensor": "Temperature sensor",
+            "humidity_sensor": "Humidity sensor",
+            "priority": "Priority (1 = most important)"
+          },
+          "sections": {
+            "advanced": {
+              "name": "Advanced",
+              "data": {
+                "co2_sensor": "CO₂ sensor",
+                "voc_sensor": "VOC sensor",
+                "pm25_sensor": "PM2.5 sensor",
+                "occupancy_sensor": "Presence sensor",
+                "climate_entity": "Heating / climate entity",
+                "fan_entity": "Fan",
+                "power_sensor": "Power meter (oven, dryer, gaming PC)",
+                "volume_m3": "Room volume",
+                "floor_area_m2": "Floor area",
+                "ceiling_height_m": "Ceiling height",
+                "target_min": "Target temperature, lower bound",
+                "target_max": "Target temperature, upper bound",
+                "is_bedroom": "Bedroom",
+                "is_moisture_source": "Moisture source (bathroom, kitchen)",
+                "is_basement": "Basement",
+                "is_unheated": "Unheated",
+                "is_top_floor": "Top floor / attic",
+                "connected_rooms": "Connected rooms (for cross ventilation)",
+                "estimation": "Estimation method without a sensor",
+                "reference_room": "Reference room",
+                "reference_offset": "Offset from the reference room"
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "required": "This field is required.",
+        "reference_room_required": "Pick a reference room for the offset estimation.",
+        "target_band_invalid": "The lower bound has to be below the upper bound."
+      },
+      "abort": {
+        "reconfigure_successful": "Room updated."
+      }
+    },
+    "window": {
+      "title": "Window",
+      "initiate_flow": {
+        "user": "Add window",
+        "reconfigure": "Edit window"
+      },
+      "entry_type": "Window",
+      "step": {
+        "user": {
+          "title": "Add window",
+          "description": "The orientation matters: the solar load is computed from the azimuth, so a rough compass direction is enough to start with.",
+          "data": {
+            "name": "Name",
+            "room": "Room",
+            "contact_sensor": "Contact sensor",
+            "orientation": "Orientation"
+          },
+          "data_description": {
+            "orientation": "Pick a compass point, or choose \"custom\" and enter the exact azimuth under Advanced."
+          },
+          "sections": {
+            "advanced": {
+              "name": "Advanced",
+              "description": "Exact azimuth, area, shutter and the safety flags.",
+              "data": {
+                "azimuth": "Azimuth (0 = north, 90 = east, 180 = south)",
+                "area_m2": "Window area",
+                "tilt_sensor": "Separate tilt sensor",
+                "tilt_capable": "Can be tilted",
+                "g_value": "Glazing g-value",
+                "cover_entity": "Shutter / blind",
+                "cover_external": "External shutter",
+                "cover_auto_allowed": "May be moved automatically",
+                "is_ground_floor": "Ground floor",
+                "ok_when_away": "May stay open while away",
+                "rain_safe": "May stay open in the rain"
+              },
+              "data_description": {
+                "cover_external": "External shutters stop about 80 % of the solar gain, internal blinds only about 30 %.",
+                "cover_auto_allowed": "Off by default. Without this the integration only ever recommends."
+              }
+            }
+          }
+        },
+        "reconfigure": {
+          "title": "Edit window",
+          "description": "The orientation matters: the solar load is computed from the azimuth, so a rough compass direction is enough to start with.",
+          "data": {
+            "name": "Name",
+            "room": "Room",
+            "contact_sensor": "Contact sensor",
+            "orientation": "Orientation"
+          },
+          "sections": {
+            "advanced": {
+              "name": "Advanced",
+              "data": {
+                "azimuth": "Azimuth (0 = north, 90 = east, 180 = south)",
+                "area_m2": "Window area",
+                "tilt_sensor": "Separate tilt sensor",
+                "tilt_capable": "Can be tilted",
+                "g_value": "Glazing g-value",
+                "cover_entity": "Shutter / blind",
+                "cover_external": "External shutter",
+                "cover_auto_allowed": "May be moved automatically",
+                "is_ground_floor": "Ground floor",
+                "ok_when_away": "May stay open while away",
+                "rain_safe": "May stay open in the rain"
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "required": "This field is required.",
+        "cover_required": "Automatic control needs a shutter entity."
+      },
+      "abort": {
+        "no_rooms": "Add a room first - a window always belongs to one.",
+        "reconfigure_successful": "Window updated."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Adaptive Ventilation",
+        "menu_options": {
+          "sources": "Data sources",
+          "building": "Building",
+          "notifications": "Notifications",
+          "weights": "Priorities",
+          "thresholds": "Thresholds and calmness"
+        }
+      },
+      "sources": {
+        "title": "Data sources",
+        "data": {
+          "weather_entity": "Weather entity (hourly forecast)",
+          "outdoor_temperature_sensor": "Outdoor temperature sensor",
+          "outdoor_humidity_sensor": "Outdoor humidity sensor",
+          "outdoor_pm25_sensor": "Outdoor PM2.5",
+          "outdoor_pm10_sensor": "Outdoor PM10",
+          "weather_alert_entity": "Weather warnings (DWD / Meteoalarm)",
+          "illuminance_sensor": "Illuminance sensor",
+          "sun_entity": "Sun entity",
+          "presence_entity": "Presence"
+        }
+      },
+      "building": {
+        "title": "Building",
+        "description": "These values only seed the thermal model. As soon as there is enough history they are replaced by measured ones.",
+        "data": {
+          "building_type": "Building type",
+          "construction_year": "Construction year",
+          "floor": "Floor",
+          "top_floor": "Top floor",
+          "f_rt": "Thermal bridge factor f_Rsi (override)"
+        },
+        "data_description": {
+          "f_rt": "0.30-0.40 uninsulated old building, 0.20 renovated, 0.10-0.13 modern insulated."
+        }
+      },
+      "notifications": {
+        "title": "Notifications",
+        "description": "A system that buzzes constantly gets muted. Fewer, better timed notifications win.",
+        "data": {
+          "notify_targets": "Notification targets",
+          "actionable_notifications": "Actionable notifications (Done / Snooze)",
+          "quiet_hours_start": "Quiet hours from",
+          "quiet_hours_end": "Quiet hours until",
+          "max_pushes_per_day": "Maximum pushes per day",
+          "notification_restraint": "Restraint (0 = everything, 100 = only important)",
+          "min_confidence_for_push": "Minimum confidence for a push",
+          "cover_automation": "Move shutters automatically"
+        },
+        "data_description": {
+          "quiet_hours_start": "Only SAFETY recommendations break the quiet hours.",
+          "min_confidence_for_push": "Estimated rooms stay below this and are only shown in the panel.",
+          "cover_automation": "Applies only to windows where automatic control is explicitly allowed."
+        }
+      },
+      "weights": {
+        "title": "Priorities",
+        "description": "Four axes, each can demand or forbid ventilation. 50 is neutral.",
+        "data": {
+          "weight_temperature": "Temperature",
+          "weight_humidity": "Humidity",
+          "weight_co2": "CO₂",
+          "weight_particulate": "Particulates"
+        }
+      },
+      "thresholds": {
+        "title": "Thresholds and calmness",
+        "data": {
+          "summer_target_min": "Summer target, lower bound",
+          "summer_target_max": "Summer target, upper bound",
+          "winter_target_min": "Winter target, lower bound",
+          "winter_target_max": "Winter target, upper bound",
+          "humidity_target_min": "Humidity target, lower bound",
+          "humidity_target_max": "Humidity target, upper bound",
+          "co2_threshold": "CO₂ threshold",
+          "pm25_indoor_threshold": "PM2.5 indoors",
+          "pm25_outdoor_threshold": "PM2.5 outdoors",
+          "storm_wind_kmh": "Storm threshold",
+          "tropical_night_threshold": "Tropical night above",
+          "delta_t_hysteresis": "ΔT hysteresis",
+          "min_state_duration_minutes": "Minimum dwell time",
+          "cooldown_minutes": "Cooldown per recommendation",
+          "close_lead_time_minutes": "Lead time before the tipping point"
+        },
+        "data_description": {
+          "delta_t_hysteresis": "The dead band is three times this value, which keeps the advice from flapping around ΔT = 0.",
+          "close_lead_time_minutes": "\"Close in 30 minutes\" instead of a notification that arrives too late."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Nothing to do",
+          "ventilate_now": "Ventilate now",
+          "keep_closed": "Keep closed",
+          "heat_protection": "Heat protection",
+          "night_flush": "Night flush",
+          "purge_running": "Purge running",
+          "storm": "Storm",
+          "air_quality": "Air quality",
+          "away": "Away",
+          "off": "Off",
+          "unavailable_data": "No usable data"
+        }
+      },
+      "next_action": {
+        "name": "Next action"
+      },
+      "tipping_point_morning": {
+        "name": "Tipping point, morning"
+      },
+      "tipping_point_evening": {
+        "name": "Tipping point, evening"
+      },
+      "cooling_budget_today": {
+        "name": "Cooling budget tonight"
+      },
+      "cooling_balance_3d": {
+        "name": "Cooling balance, 3 days"
+      },
+      "open_windows_count": {
+        "name": "Open windows"
+      },
+      "absolute_humidity": {
+        "name": "Absolute humidity"
+      },
+      "dew_point": {
+        "name": "Dew point"
+      },
+      "enthalpy": {
+        "name": "Enthalpy"
+      },
+      "mold_risk": {
+        "name": "Mould risk",
+        "state": {
+          "none": "None",
+          "low": "Low",
+          "moderate": "Moderate",
+          "high": "High",
+          "condensation": "Condensation"
+        }
+      },
+      "wall_surface_temperature": {
+        "name": "Wall surface temperature"
+      },
+      "heating_rate": {
+        "name": "Temperature trend"
+      },
+      "air_quality_score": {
+        "name": "Air quality score"
+      },
+      "temperature_estimated": {
+        "name": "Temperature (estimated)"
+      },
+      "recommendation": {
+        "name": "Recommendation",
+        "state": {
+          "open_wide": "Open wide",
+          "open_tilt": "Tilt open",
+          "purge": "Purge",
+          "cross_ventilate": "Cross ventilate",
+          "close": "Close",
+          "keep_closed": "Keep closed",
+          "keep_open": "Keep open",
+          "cover_down": "Shutter down",
+          "cover_up": "Shutter up",
+          "cover_slat": "Shutter partly down",
+          "fan_on": "Fan on",
+          "no_action": "Nothing to do"
+        }
+      },
+      "solar_load": {
+        "name": "Solar load"
+      }
+    },
+    "binary_sensor": {
+      "action_required": {
+        "name": "Action required"
+      },
+      "storm_risk": {
+        "name": "Storm risk"
+      },
+      "purge_running": {
+        "name": "Purge running"
+      },
+      "should_be_open": {
+        "name": "Should be open"
+      }
+    },
+    "select": {
+      "mode": {
+        "name": "Mode",
+        "state": {
+          "auto": "Automatic",
+          "summer": "Summer",
+          "winter": "Winter",
+          "away": "Away",
+          "off": "Off",
+          "manual_hold": "Manual hold"
+        }
+      }
+    },
+    "number": {
+      "weight_temperature": {
+        "name": "Weight: temperature"
+      },
+      "weight_humidity": {
+        "name": "Weight: humidity"
+      },
+      "weight_co2": {
+        "name": "Weight: CO₂"
+      },
+      "weight_particulate": {
+        "name": "Weight: particulates"
+      },
+      "summer_target_min": {
+        "name": "Summer target, lower bound"
+      },
+      "summer_target_max": {
+        "name": "Summer target, upper bound"
+      },
+      "winter_target_min": {
+        "name": "Winter target, lower bound"
+      },
+      "winter_target_max": {
+        "name": "Winter target, upper bound"
+      },
+      "co2_threshold": {
+        "name": "CO₂ threshold"
+      },
+      "pm25_indoor_threshold": {
+        "name": "PM2.5 threshold indoors"
+      },
+      "delta_t_hysteresis": {
+        "name": "ΔT hysteresis"
+      },
+      "min_state_duration_minutes": {
+        "name": "Minimum dwell time"
+      },
+      "cooldown_minutes": {
+        "name": "Cooldown"
+      },
+      "close_lead_time_minutes": {
+        "name": "Lead time before closing"
+      },
+      "max_pushes_per_day": {
+        "name": "Maximum pushes per day"
+      }
+    },
+    "switch": {
+      "notifications": {
+        "name": "Notifications"
+      },
+      "cover_automation": {
+        "name": "Shutter automation"
+      },
+      "actionable_notifications": {
+        "name": "Actionable notifications"
+      }
+    },
+    "button": {
+      "purge_now": {
+        "name": "Purge now"
+      },
+      "snooze_1h": {
+        "name": "Snooze 1 h"
+      },
+      "recalibrate": {
+        "name": "Recalibrate"
+      },
+      "purge_room": {
+        "name": "Purge this room"
+      }
+    },
+    "text": {
+      "display_line1": {
+        "name": "Display line 1"
+      },
+      "display_line2": {
+        "name": "Display line 2"
+      },
+      "display_line3": {
+        "name": "Display line 3"
+      }
+    }
+  },
+  "selector": {
+    "building_type": {
+      "options": {
+        "old_massive": "Old building, solid, uninsulated",
+        "old_renovated": "Old building, renovated",
+        "new_insulated": "Modern, insulated, solid",
+        "lightweight": "Lightweight construction / attic",
+        "half_timbered": "Half-timbered",
+        "unknown": "Not sure"
+      }
+    },
+    "estimation": {
+      "options": {
+        "measured": "Measured (sensor available)",
+        "reference_offset": "Reference room plus offset",
+        "model": "Model based"
+      }
+    },
+    "orientation": {
+      "options": {
+        "n": "North",
+        "ne": "North-east",
+        "e": "East",
+        "se": "South-east",
+        "s": "South",
+        "sw": "South-west",
+        "w": "West",
+        "nw": "North-west",
+        "custom": "Custom azimuth"
+      }
+    },
+    "mode": {
+      "options": {
+        "auto": "Automatic",
+        "summer": "Summer",
+        "winter": "Winter",
+        "away": "Away",
+        "off": "Off"
+      }
+    },
+    "snooze_scope": {
+      "options": {
+        "1h": "One hour",
+        "until_evening": "Until this evening",
+        "today": "Today",
+        "all_1h": "Everything for one hour"
+      }
+    },
+    "learned_parameter": {
+      "options": {
+        "tau_hours": "Time constant τ",
+        "night_cooling_k_per_h": "Night cool-down rate",
+        "solar_gain_coefficient": "Solar gain coefficient",
+        "internal_gain_w": "Internal gains",
+        "air_changes_per_hour": "Air changes per hour"
+      }
+    }
+  },
+  "services": {
+    "start_purge": {
+      "name": "Start purge",
+      "description": "Starts a purge timer with the duration calculated for the current outdoor temperature.",
+      "fields": {
+        "entry_id": {
+          "name": "Configuration",
+          "description": "Which flat, if you have more than one."
+        },
+        "room": {
+          "name": "Room",
+          "description": "Room name or subentry id. Empty means every room."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Overrides the calculated duration."
+        }
+      }
+    },
+    "snooze": {
+      "name": "Snooze",
+      "description": "Mutes one recommendation or all of them for a while.",
+      "fields": {
+        "entry_id": {
+          "name": "Configuration",
+          "description": "Which flat, if you have more than one."
+        },
+        "recommendation_id": {
+          "name": "Recommendation",
+          "description": "Empty means every current recommendation."
+        },
+        "scope": {
+          "name": "Duration",
+          "description": "How long to stay quiet."
+        }
+      }
+    },
+    "acknowledge": {
+      "name": "Acknowledge",
+      "description": "Marks a recommendation as done: starts the cooldown and feeds the learning.",
+      "fields": {
+        "entry_id": {
+          "name": "Configuration",
+          "description": "Which flat, if you have more than one."
+        },
+        "recommendation_id": {
+          "name": "Recommendation",
+          "description": "The id from the entity attributes."
+        }
+      }
+    },
+    "set_mode": {
+      "name": "Set mode",
+      "description": "Switches between automatic, summer, winter, away and off.",
+      "fields": {
+        "entry_id": {
+          "name": "Configuration",
+          "description": "Which flat, if you have more than one."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "The new mode."
+        }
+      }
+    },
+    "recalibrate": {
+      "name": "Recalibrate",
+      "description": "Runs the self-calibration against the recorder history immediately.",
+      "fields": {
+        "entry_id": {
+          "name": "Configuration",
+          "description": "Which flat, if you have more than one."
+        }
+      }
+    },
+    "override_parameter": {
+      "name": "Override learned value",
+      "description": "Overwrites or resets a self-calibrated parameter.",
+      "fields": {
+        "entry_id": {
+          "name": "Configuration",
+          "description": "Which flat, if you have more than one."
+        },
+        "room": {
+          "name": "Room",
+          "description": "Room name or subentry id."
+        },
+        "parameter": {
+          "name": "Parameter",
+          "description": "Which learned value to change."
+        },
+        "value": {
+          "name": "Value",
+          "description": "The new value."
+        },
+        "reset": {
+          "name": "Reset",
+          "description": "Drop the override and go back to learning."
+        }
+      }
+    },
+    "export_diagnostics": {
+      "name": "Export diagnostics",
+      "description": "Returns the full internal state as a service response - useful for bug reports.",
+      "fields": {
+        "entry_id": {
+          "name": "Configuration",
+          "description": "Which flat, if you have more than one."
+        }
+      }
+    },
+    "simulate": {
+      "name": "Simulate",
+      "description": "What-if: window X open from t1 to t2, and here is the expected curve compared to doing nothing.",
+      "fields": {
+        "entry_id": {
+          "name": "Configuration",
+          "description": "Which flat, if you have more than one."
+        },
+        "room": {
+          "name": "Room",
+          "description": "Which room to simulate."
+        },
+        "window": {
+          "name": "Windows",
+          "description": "Which windows are opened. Empty means all of them."
+        },
+        "start": {
+          "name": "Open from",
+          "description": "Start of the ventilation window."
+        },
+        "end": {
+          "name": "Open until",
+          "description": "End of the ventilation window."
+        },
+        "shading_from": {
+          "name": "Shading from",
+          "description": "When the shutters go down."
+        }
+      }
+    }
+  },
+  "issues": {
+    "outdoor_sensor_in_sun": {
+      "title": "Outdoor sensor probably in the sun",
+      "description": "The outdoor sensor reads {delta} K above the weather service while the sun is up. That skews every ΔT comparison. Move it into the shade, or use the weather entity as the temperature source."
+    },
+    "no_hourly_forecast": {
+      "title": "No hourly forecast",
+      "description": "The configured weather entity does not deliver an hourly forecast. Without it there are no tipping points, no 24 h plan and no pre-cooling. Pick a weather integration that supports hourly forecasts."
+    },
+    "no_rooms_configured": {
+      "title": "No rooms configured",
+      "description": "Adaptive Ventilation needs at least one room. Add one via the \"Add room\" subentry on the integration page."
+    },
+    "no_windows_configured": {
+      "title": "No windows configured",
+      "description": "Without windows there is nothing to recommend. Add at least one window with a contact sensor."
+    },
+    "missing_entity": {
+      "title": "Configured entity is missing",
+      "description": "An entity used by Adaptive Ventilation no longer exists: {entity_id}. Update the configuration."
+    }
+  },
+  "exceptions": {
+    "no_entry_found": {
+      "message": "No loaded Adaptive Ventilation configuration found."
+    },
+    "entry_id_required": {
+      "message": "More than one configuration is loaded - specify which one."
+    },
+    "unknown_room": {
+      "message": "Unknown room: {room}"
+    },
+    "unknown_window": {
+      "message": "Unknown window: {window}"
+    }
+  }
+}
