@@ -89,7 +89,7 @@ content: >-
   {% set icon = {'open_wide':'🪟','open_tilt':'↗','purge':'💨',
                  'cross_ventilate':'↔','close':'🚪','keep_closed':'🔒',
                  'keep_open':'🪟','no_action':'·'}.get(w.state, '·') %}
-  {{ icon }} **{{ w.name | replace(' Recommendation', '') }}** — {{ w.attributes.reason }}
+  {{ icon }} **{{ w.name | replace(' Recommendation', '') }}**, {{ w.attributes.reason }}
   {% if w.attributes.duration_minutes %} *({{ w.attributes.duration_minutes }} min)*{% endif %}
 
   {% endfor %}
