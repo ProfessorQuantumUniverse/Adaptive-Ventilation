@@ -6,9 +6,9 @@ touch Home Assistant, so ``custom_components`` only needs to be on the path.
 
 from __future__ import annotations
 
-import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -24,8 +24,6 @@ from adaptive_ventilation.engine import (  # noqa: E402
     WindowState,
     WorldState,
 )
-
-UTC = timezone.utc
 
 
 @pytest.fixture
@@ -63,7 +61,10 @@ def make_world(
         priority=1,
     )
     window = WindowState(
-        id="living_south", name="Living room south", room_id="living_room", azimuth=190.0,
+        id="living_south",
+        name="Living room south",
+        room_id="living_room",
+        azimuth=190.0,
         area_m2=2.2,
     )
     return WorldState(

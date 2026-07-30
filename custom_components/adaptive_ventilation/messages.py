@@ -11,8 +11,9 @@ neither of which can use the entity translation machinery.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
-from typing import Any, Mapping
+from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +37,9 @@ TEMPLATES: dict[str, dict[str, str]] = {
     },
     "frost_and_heating": {
         "en": "{outdoor} °C outside and the heating is on - {window} has been open {minutes} min.",
-        "de": "{outdoor} °C draußen bei laufender Heizung - {window} steht seit {minutes} min offen.",
+        "de": (
+            "{outdoor} °C draußen bei laufender Heizung - {window} steht seit {minutes} min offen."
+        ),
     },
     "away_and_open": {
         "en": "Nobody home and {window} is open.",
@@ -243,8 +246,7 @@ TEMPLATES: dict[str, dict[str, str]] = {
             "close again before the rain."
         ),
         "de": (
-            "Frontdurchgang: {drop} K in kurzer Zeit. {window} jetzt auf, "
-            "vor dem Regen wieder zu."
+            "Frontdurchgang: {drop} K in kurzer Zeit. {window} jetzt auf, vor dem Regen wieder zu."
         ),
     },
     "fan_instead": {
@@ -267,12 +269,8 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "de": "{room}: {minutes} min stoßlüften, weit offen ({outdoor} °C draußen).",
     },
     "winter_purge_cross": {
-        "en": (
-            "{room}: cross ventilate with {partner} - {minutes} min is enough that way."
-        ),
-        "de": (
-            "{room}: quer lüften zusammen mit {partner} - so reichen {minutes} min."
-        ),
+        "en": ("{room}: cross ventilate with {partner} - {minutes} min is enough that way."),
+        "de": ("{room}: quer lüften zusammen mit {partner} - so reichen {minutes} min."),
     },
     "avoid_tilt_winter": {
         "en": (
@@ -357,6 +355,7 @@ def render(reason_key: str, data: Mapping[str, Any], language: str = DEFAULT_LAN
 
 
 def title(priority_name: str, language: str = DEFAULT_LANGUAGE) -> str:
+    """Notification headline for a priority class."""
     entry = TITLES.get(priority_name, TITLES["COMFORT"])
     return entry.get(language) or entry[DEFAULT_LANGUAGE]
 

@@ -7,7 +7,7 @@ would have stopped 80 %.
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from ..context import EvaluationContext
 from ..state import Action, Priority, Recommendation, Season, clamp

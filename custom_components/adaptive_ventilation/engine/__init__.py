@@ -11,8 +11,8 @@ replayable against recorder history (``scripts/replay.py``).
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta
-from typing import Iterable, Sequence
 
 from . import arbiter, psychrometrics, schedule, solar, thermal
 from .context import EvaluationContext, build_context
@@ -193,8 +193,11 @@ def simulate_plan(
             "end_temperature": round(result.end_temperature, 2),
             "min_temperature": round(result.min_temperature, 2),
             "curve": [
-                {"time": p.time.isoformat(), "indoor": round(p.indoor_temperature, 2),
-                 "outdoor": round(p.outdoor_temperature, 2)}
+                {
+                    "time": p.time.isoformat(),
+                    "indoor": round(p.indoor_temperature, 2),
+                    "outdoor": round(p.outdoor_temperature, 2),
+                }
                 for p in result.points
             ],
         }

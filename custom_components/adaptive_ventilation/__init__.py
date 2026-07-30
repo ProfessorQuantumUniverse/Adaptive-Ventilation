@@ -15,9 +15,7 @@ from .services import async_setup_services, async_unload_services
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry: AdaptiveVentilationConfigEntry
-) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: AdaptiveVentilationConfigEntry) -> bool:
     """Set up Adaptive Ventilation from a config entry."""
     coordinator = AdaptiveVentilationCoordinator(hass, entry)
     await coordinator.async_setup()
@@ -33,9 +31,7 @@ async def async_setup_entry(
     return True
 
 
-async def async_unload_entry(
-    hass: HomeAssistant, entry: AdaptiveVentilationConfigEntry
-) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: AdaptiveVentilationConfigEntry) -> bool:
     """Unload a config entry."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
@@ -44,8 +40,7 @@ async def async_unload_entry(
     remaining = [
         candidate
         for candidate in hass.config_entries.async_entries(DOMAIN)
-        if candidate.entry_id != entry.entry_id
-        and candidate.state.recoverable
+        if candidate.entry_id != entry.entry_id and candidate.state.recoverable
     ]
     if not remaining:
         async_unload_services(hass)
@@ -69,6 +64,4 @@ async def async_remove_config_entry_device(
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old config entries. Version 1 is the first public schema."""
-    if entry.version > 1:
-        return False
-    return True
+    return entry.version <= 1

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import timedelta
-from typing import Iterable
 
 from .. import solar as solar_mod
 from ..context import EvaluationContext

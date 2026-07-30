@@ -6,12 +6,12 @@ These run without ``pytest-homeassistant-custom-component``: they only need the
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, time, timedelta
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
 from homeassistant.core import State
+import pytest
 
 from adaptive_ventilation import models
 from adaptive_ventilation.const import (
@@ -23,8 +23,6 @@ from adaptive_ventilation.const import (
     CONF_QUIET_START,
 )
 from adaptive_ventilation.engine.state import BuildingType
-
-UTC = timezone.utc
 
 
 class FakeStates:
@@ -90,9 +88,7 @@ def test_building_profile_maps_type_and_falls_back() -> None:
 
 
 def test_f_rt_override_wins() -> None:
-    profile = models.build_building(
-        {CONF_BUILDING_TYPE: "old_massive", CONF_F_RT: 0.15}, 50.0, 8.0
-    )
+    profile = models.build_building({CONF_BUILDING_TYPE: "old_massive", CONF_F_RT: 0.15}, 50.0, 8.0)
     assert profile.f_rt == pytest.approx(0.15)
 
 
@@ -193,12 +189,11 @@ def test_reference_offset_estimation_keeps_absolute_humidity() -> None:
     """The offset room inherits g/m3, not the reference room's percentage."""
     from adaptive_ventilation.engine import psychrometrics as psy
 
-    hass = fake_hass(
-        {"sensor.t": state("sensor.t", 21.0), "sensor.h": state("sensor.h", 50)}
-    )
+    hass = fake_hass({"sensor.t": state("sensor.t", 21.0), "sensor.h": state("sensor.h", 50)})
     configs = [
-        _room_config(id="living", name="Living", temperature_sensor="sensor.t",
-                     humidity_sensor="sensor.h"),
+        _room_config(
+            id="living", name="Living", temperature_sensor="sensor.t", humidity_sensor="sensor.h"
+        ),
         _room_config(
             id="attic",
             name="Attic",
@@ -287,7 +282,10 @@ def test_cover_without_position_falls_back_to_open_closed() -> None:
         }
     )
     config = models.WindowConfig(
-        id="w1", name="W", room_id="r1", contact_sensor="binary_sensor.w",
+        id="w1",
+        name="W",
+        room_id="r1",
+        contact_sensor="binary_sensor.w",
         cover_entity="cover.w",
     )
     window = models.build_windows(hass, [config])[0]
@@ -310,10 +308,14 @@ def test_window_config_derives_volume_from_area_and_height() -> None:
 def test_forecast_conversion_sorts_and_drops_broken_entries() -> None:
     base = datetime(2025, 7, 15, 20, 0, tzinfo=UTC)
     raw = [
-        {"datetime": (base + timedelta(hours=2)).isoformat(), "temperature": 17.0,
-         "humidity": 70},
-        {"datetime": base.isoformat(), "temperature": 19.0, "humidity": 65,
-         "wind_speed": 10.8, "wind_speed_unit": "km/h"},
+        {"datetime": (base + timedelta(hours=2)).isoformat(), "temperature": 17.0, "humidity": 70},
+        {
+            "datetime": base.isoformat(),
+            "temperature": 19.0,
+            "humidity": 65,
+            "wind_speed": 10.8,
+            "wind_speed_unit": "km/h",
+        },
         {"datetime": None, "temperature": 5.0},
         {"datetime": (base + timedelta(hours=1)).isoformat()},
     ]

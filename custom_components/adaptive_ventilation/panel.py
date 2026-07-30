@@ -11,11 +11,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import voluptuous as vol
 from homeassistant.components import frontend, websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
+import voluptuous as vol
 
 from .const import (
     DOMAIN,
@@ -66,6 +66,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
 
 @callback
 def async_unregister_panel(hass: HomeAssistant) -> None:
+    """Remove the panel when the last config entry goes away."""
     if not hass.data.pop(_REGISTERED, False):
         return
     frontend.async_remove_panel(hass, PANEL_URL.lstrip("/"))
@@ -107,9 +108,7 @@ async def ws_panel_data(
     """Everything the panel renders, in one document."""
     coordinator = _coordinator(hass, msg.get("entry_id"))
     if coordinator is None:
-        connection.send_result(
-            msg["id"], {"ready": False, "entries": [], "error": "not_loaded"}
-        )
+        connection.send_result(msg["id"], {"ready": False, "entries": [], "error": "not_loaded"})
         return
 
     payload = panel_payload(coordinator)
@@ -125,8 +124,16 @@ async def ws_panel_data(
         vol.Required("type"): f"{DOMAIN}/action",
         vol.Optional("entry_id"): str,
         vol.Required("action"): vol.In(
-            ["acknowledge", "snooze", "ignore_today", "purge", "set_mode", "set_option",
-             "override", "recalibrate"]
+            [
+                "acknowledge",
+                "snooze",
+                "ignore_today",
+                "purge",
+                "set_mode",
+                "set_option",
+                "override",
+                "recalibrate",
+            ]
         ),
         vol.Optional("recommendation_id"): str,
         vol.Optional("room_id"): str,
@@ -163,9 +170,7 @@ async def ws_action(
         elif action == "set_option":
             options = dict(coordinator.config_entry.options)
             options[msg["option"]] = msg.get("value")
-            hass.config_entries.async_update_entry(
-                coordinator.config_entry, options=options
-            )
+            hass.config_entries.async_update_entry(coordinator.config_entry, options=options)
         elif action == "override":
             await coordinator.async_override_parameter(
                 msg["room_id"],
@@ -175,7 +180,7 @@ async def ws_action(
             )
         elif action == "recalibrate":
             await coordinator.async_recalibrate()
-    except Exception as err:  # noqa: BLE001 - report back instead of dropping the socket
+    except Exception as err:
         _LOGGER.exception("panel action %s failed", action)
         connection.send_error(msg["id"], "action_failed", str(err))
         return
@@ -228,7 +233,7 @@ async def ws_preview(
 
     try:
         connection.send_result(msg["id"], await hass.async_add_executor_job(_run))
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         connection.send_error(msg["id"], "preview_failed", str(err))
 
 
@@ -267,7 +272,7 @@ async def ws_simulate(
         connection.send_error(msg["id"], "not_loaded", "no loaded config entry")
         return
 
-    def _parse(key: str):  # noqa: ANN202 - tiny local helper
+    def _parse(key: str):
         raw = msg.get(key)
         return dt_util.parse_datetime(raw) if raw else None
 
@@ -279,7 +284,7 @@ async def ws_simulate(
             open_until=_parse("open_until"),
             shading_from=_parse("shading_from"),
         )
-    except Exception as err:  # noqa: BLE001
+    except Exception as err:
         connection.send_error(msg["id"], "simulate_failed", str(err))
         return
     connection.send_result(msg["id"], result)

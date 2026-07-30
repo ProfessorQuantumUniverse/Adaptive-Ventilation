@@ -24,6 +24,7 @@ async def async_setup_entry(
     entry: AdaptiveVentilationConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+    """Set up the entities for one config entry."""
     coordinator = entry.runtime_data
     async_add_entities(
         [
@@ -115,11 +116,7 @@ class PurgeRunningBinarySensor(AdaptiveVentilationEntity, BinarySensorEntity):
                 {
                     "room_id": room_id,
                     "ends_at": end.isoformat(),
-                    "minutes_left": max(
-                        0, int((end - now).total_seconds() / 60)
-                    )
-                    if now
-                    else None,
+                    "minutes_left": max(0, int((end - now).total_seconds() / 60)) if now else None,
                 }
                 for room_id, end in self.coordinator.purge_active.items()
             ]
@@ -131,9 +128,7 @@ class ShouldBeOpenBinarySensor(WindowEntity, BinarySensorEntity):
 
     _attr_device_class = BinarySensorDeviceClass.WINDOW
 
-    def __init__(
-        self, coordinator: AdaptiveVentilationCoordinator, window: WindowConfig
-    ) -> None:
+    def __init__(self, coordinator: AdaptiveVentilationCoordinator, window: WindowConfig) -> None:
         super().__init__(coordinator, window, "should_be_open")
 
     @property

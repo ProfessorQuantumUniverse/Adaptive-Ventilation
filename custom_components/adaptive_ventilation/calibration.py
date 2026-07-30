@@ -10,12 +10,14 @@ framework, exactly as the specification demands.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta
+from itertools import pairwise
 import logging
 import math
 import statistics
-from dataclasses import dataclass, replace
-from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, Iterable, Sequence
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
@@ -61,9 +63,7 @@ class Sample:
 class Calibrator:
     """Runs nightly (or on demand) and updates the learned parameters."""
 
-    def __init__(
-        self, hass: HomeAssistant, coordinator: AdaptiveVentilationCoordinator
-    ) -> None:
+    def __init__(self, hass: HomeAssistant, coordinator: AdaptiveVentilationCoordinator) -> None:
         self.hass = hass
         self.coordinator = coordinator
         self._last_run: datetime | None = None
@@ -76,7 +76,7 @@ class Calibrator:
 
         try:
             history = await self._async_history(now)
-        except Exception as err:  # noqa: BLE001 - recorder may be disabled entirely
+        except Exception as err:
             _LOGGER.info("calibration skipped, no usable history: %s", err)
             return {"skipped": str(err)}
 
@@ -156,9 +156,7 @@ class Calibrator:
             True,
             True,
         )
-        return {
-            entity_id: _to_samples(states) for entity_id, states in (raw or {}).items()
-        }
+        return {entity_id: _to_samples(states) for entity_id, states in (raw or {}).items()}
 
     def _open_periods(
         self, history: dict[str, list[Sample]], room_id: str
@@ -213,7 +211,7 @@ class Calibrator:
 
         xs: list[float] = []
         ys: list[float] = []
-        for previous, current in zip(indoor, indoor[1:]):
+        for previous, current in pairwise(indoor):
             hours = (current.time - previous.time).total_seconds() / 3600.0
             if not 0.1 <= hours <= 1.5:
                 continue
@@ -226,8 +224,7 @@ class Calibrator:
             if elevation <= 5.0:
                 continue
             load = sum(
-                solar_mod.solar_load(p, elevation, azimuth, None, apply_cover=False)
-                for p in probes
+                solar_mod.solar_load(p, elevation, azimuth, None, apply_cover=False) for p in probes
             )
             if load <= 20.0:
                 continue
@@ -253,9 +250,11 @@ class Calibrator:
         )
         modelled_slope = 1.0 / capacity
         coefficient = _bounded(slope / modelled_slope, SOLAR_GAIN_BOUNDS)
-        internal = _bounded(
-            (intercept or 0.0) * capacity, (10.0, 1500.0)
-        ) if intercept and intercept > 0 else None
+        internal = (
+            _bounded((intercept or 0.0) * capacity, (10.0, 1500.0))
+            if intercept and intercept > 0
+            else None
+        )
         return coefficient, internal
 
 
@@ -350,9 +349,7 @@ def fit_air_changes(
         if len(inside) < 3:
             continue
         hours = (inside[-1].time - inside[0].time).total_seconds() / 3600.0
-        rate = psy.air_changes_from_co2_decay(
-            inside[0].value, inside[-1].value, OUTDOOR_CO2, hours
-        )
+        rate = psy.air_changes_from_co2_decay(inside[0].value, inside[-1].value, OUTDOOR_CO2, hours)
         if rate is not None and ACH_BOUNDS[0] <= rate <= ACH_BOUNDS[1]:
             values.append(rate)
 
@@ -373,7 +370,7 @@ def linear_regression(
     denominator = sum((x - mean_x) ** 2 for x in xs)
     if denominator <= 1e-12:
         return None, None
-    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / denominator
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True)) / denominator
     return slope, mean_y - slope * mean_x
 
 
@@ -384,7 +381,7 @@ def _robust_mean(values: Sequence[float]) -> float:
     median = statistics.median(values)
     deviations = [abs(v - median) for v in values]
     mad = statistics.median(deviations) or 1e-6
-    kept = [v for v, d in zip(values, deviations) if d <= 3.0 * mad]
+    kept = [v for v, d in zip(values, deviations, strict=True) if d <= 3.0 * mad]
     return statistics.fmean(kept or list(values))
 
 
@@ -412,9 +409,7 @@ def _inside(moment: datetime, periods: Iterable[tuple[datetime, datetime]]) -> b
     return any(start <= moment <= end for start, end in periods)
 
 
-def _overlaps(
-    start: datetime, end: datetime, periods: Iterable[tuple[datetime, datetime]]
-) -> bool:
+def _overlaps(start: datetime, end: datetime, periods: Iterable[tuple[datetime, datetime]]) -> bool:
     return any(not (end < s or start > e) for s, e in periods)
 
 
@@ -423,7 +418,7 @@ def _interpolate(samples: Sequence[Sample], moment: datetime) -> float | None:
         return None
     if moment <= samples[0].time:
         return samples[0].value
-    for previous, following in zip(samples, samples[1:]):
+    for previous, following in pairwise(samples):
         if previous.time <= moment <= following.time:
             span = (following.time - previous.time).total_seconds()
             if span <= 0:
@@ -433,9 +428,7 @@ def _interpolate(samples: Sequence[Sample], moment: datetime) -> float | None:
     return samples[-1].value
 
 
-def _mean_between(
-    samples: Sequence[Sample], start: datetime, end: datetime
-) -> float | None:
+def _mean_between(samples: Sequence[Sample], start: datetime, end: datetime) -> float | None:
     inside = [s.value for s in samples if start <= s.time <= end]
     return statistics.fmean(inside) if inside else None
 

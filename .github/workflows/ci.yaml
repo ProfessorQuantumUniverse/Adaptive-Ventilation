@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEFAULT_PYTHON: "3.13"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+      - name: Install tooling
+        run: python -m pip install --upgrade pip ruff mypy
+      - name: ruff check
+        run: ruff check custom_components scripts tests
+      - name: ruff format --check
+        run: ruff format --check custom_components scripts tests
+      - name: mypy (the engine is strict)
+        # --follow-imports=silent keeps mypy from reporting on Home Assistant
+        # itself, which it reaches through the parent package.
+        run: mypy --strict --follow-imports=silent custom_components/adaptive_ventilation/engine
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest pytest-cov pyyaml
+          python -m pip install pytest-homeassistant-custom-component
+      - name: Run the full suite
+        # The tests under tests/hass/ need the Home Assistant plugin, which
+        # only works on POSIX. They are skipped on Windows and run here.
+        run: pytest tests --cov=custom_components/adaptive_ventilation --cov-report=term-missing
+      - name: Replay the scenarios
+        run: python scripts/replay.py --scenarios
+
+  engine-only:
+    name: Engine without Home Assistant
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+      - name: Install the bare minimum
+        run: python -m pip install --upgrade pip pytest pyyaml
+      - name: Prove the engine has no Home Assistant import
+        # If anything under engine/ ever reaches for homeassistant, this fails:
+        # the package is not installed in this job at all.
+        run: |
+          python - <<'PY'
+          import ast, pathlib, sys
+          bad = []
+          for path in pathlib.Path("custom_components/adaptive_ventilation/engine").rglob("*.py"):
+              tree = ast.parse(path.read_text(encoding="utf-8"))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      names = [a.name for a in node.names]
+                  elif isinstance(node, ast.ImportFrom):
+                      names = [node.module or ""]
+                  else:
+                      continue
+                  for name in names:
+                      if name.split(".")[0] == "homeassistant":
+                          bad.append(f"{path}:{node.lineno}")
+          if bad:
+              sys.exit("engine imports Home Assistant: " + ", ".join(bad))
+          print("engine is Home Assistant free")
+          PY
+      - name: Run the engine tests standalone
+        run: pytest tests/test_engine_scenarios.py tests/test_engine_psychrometrics.py
+             tests/test_engine_thermal.py tests/test_engine_solar.py
+             tests/test_engine_properties.py -q
+
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration

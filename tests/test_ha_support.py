@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -40,7 +40,6 @@ from adaptive_ventilation.engine.state import (
 
 from .conftest import make_forecast
 
-UTC = timezone.utc
 NOW = datetime(2025, 7, 15, 20, 0, tzinfo=UTC)
 
 
@@ -48,12 +47,8 @@ def _world() -> WorldState:
     return WorldState(
         now=NOW,
         outdoor=OutdoorState.create(17.0, 65.0, pressure=1013.0),
-        rooms=(
-            RoomState.create("living", "Living room", 26.5, 50.0, volume_m3=60.0, priority=1),
-        ),
-        windows=(
-            WindowState(id="w1", name="South", room_id="living", azimuth=190.0, area_m2=2.2),
-        ),
+        rooms=(RoomState.create("living", "Living room", 26.5, 50.0, volume_m3=60.0, priority=1),),
+        windows=(WindowState(id="w1", name="South", room_id="living", azimuth=190.0, area_m2=2.2),),
         forecast=make_forecast(NOW, [17.0] * 30, 65.0),
         sun=SunState(azimuth=300.0, elevation=-10.0),
     )
@@ -205,8 +200,8 @@ def test_schedule_payload_is_json_friendly() -> None:
 
 def test_every_reason_key_used_by_the_rules_has_a_template() -> None:
     """A recommendation without a sentence is a recommendation nobody trusts."""
-    import re
     from pathlib import Path
+    import re
 
     rules_dir = Path(__file__).parents[1] / "custom_components" / "adaptive_ventilation" / "engine"
     used: set[str] = set()
@@ -236,7 +231,8 @@ def test_render_falls_back_for_an_unknown_key() -> None:
 
 
 @pytest.mark.parametrize(
-    ("raw", "expected"), [("de", "de"), ("de-DE", "de"), ("en-GB", "en"), ("fr", "en"), (None, "en")]
+    ("raw", "expected"),
+    [("de", "de"), ("de-DE", "de"), ("en-GB", "en"), ("fr", "en"), (None, "en")],
 )
 def test_language_resolution(raw: str | None, expected: str) -> None:
     assert messages.resolve_language(raw) == expected
@@ -273,9 +269,7 @@ def test_fit_tau_recovers_a_synthetic_time_constant() -> None:
 
     tau = 40.0
     outdoor_value = 10.0
-    indoor = [
-        outdoor_value + 12.0 * math.exp(-(i * 0.25) / tau) for i in range(40)
-    ]
+    indoor = [outdoor_value + 12.0 * math.exp(-(i * 0.25) / tau) for i in range(40)]
     inside = _series(NOW, indoor)
     outside = _series(NOW, [outdoor_value] * 40)
 
@@ -367,3 +361,67 @@ def test_window_validation() -> None:
     assert CONF_CONTACT_SENSOR in config_flow._validate_window(
         {CONF_WINDOW_NAME: "South", CONF_ROOM: "abc"}
     )
+
+
+# --------------------------------------------------------------------------
+# Notification budget
+# --------------------------------------------------------------------------
+
+
+def test_push_budget_reserves_headroom_for_health() -> None:
+    """A shading tip in the morning must not eat the whole day's budget."""
+    from adaptive_ventilation.engine.state import Priority
+
+    memory = EngineMemory()
+    limit = 6
+
+    # Comfort spends until only the reserve is left.
+    allowed = 0
+    while memory.may_push(Priority.COMFORT, NOW, limit):
+        memory.register_push(f"comfort:{allowed}", f"w{allowed}", NOW, 60)
+        allowed += 1
+    assert allowed == 4
+
+    # Health can still get through, safety always.
+    assert memory.may_push(Priority.HEALTH, NOW, limit)
+    assert memory.may_push(Priority.SAFETY, NOW, limit)
+
+    memory.register_push("health:1", "w1", NOW, 60)
+    memory.register_push("health:2", "w2", NOW, 60)
+    assert not memory.may_push(Priority.HEALTH, NOW, limit)
+    assert memory.may_push(Priority.SAFETY, NOW, limit)
+
+
+def test_register_push_sets_a_durable_cooldown() -> None:
+    """The cooldown lives in the persisted memory, so a restart does not re-notify."""
+    memory = EngineMemory()
+    memory.register_push("night_flush:w1", "w1", NOW, 60)
+
+    assert memory.cooldowns["night_flush:w1"] == NOW + timedelta(minutes=60)
+    assert memory.target("w1").last_notified == NOW
+    assert memory.pushes_today == 1
+
+    restored = storage.deserialize_memory(storage.serialize_memory(memory))
+    assert restored.cooldowns["night_flush:w1"] == NOW + timedelta(minutes=60)
+
+
+def test_budget_resets_on_a_new_day() -> None:
+    from adaptive_ventilation.engine.state import Priority
+
+    memory = EngineMemory()
+    for i in range(6):
+        memory.register_push(f"x{i}", f"w{i}", NOW, 60)
+    assert not memory.may_push(Priority.HEALTH, NOW, 6)
+    assert memory.may_push(Priority.HEALTH, NOW + timedelta(days=1), 6)
+
+
+def test_preferences_accept_a_string_clock() -> None:
+    """YAML scenario files and the replay map hand over plain strings."""
+    from adaptive_ventilation.engine.state import Preferences
+
+    prefs = Preferences(quiet_hours_start="23:30", quiet_hours_end="06:00")  # type: ignore[arg-type]
+    assert prefs.quiet_hours_start.hour == 23
+    assert prefs.quiet_hours_end.hour == 6
+    # And the comparison it exists for actually works.
+    assert prefs.in_quiet_hours(NOW.replace(hour=1))
+    assert not prefs.in_quiet_hours(NOW.replace(hour=12))

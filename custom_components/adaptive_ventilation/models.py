@@ -7,10 +7,11 @@ raw state object.
 
 from __future__ import annotations
 
-import logging
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta
-from typing import Any, Iterable, Mapping
+import logging
+from typing import Any
 
 from homeassistant.const import STATE_ON, STATE_OPEN, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
@@ -324,7 +325,10 @@ def build_preferences(options: Mapping[str, Any]) -> Preferences:
         return Preferences(**valid)
 
 
-def build_building(options: Mapping[str, Any], latitude: float, longitude: float) -> BuildingProfile:
+def build_building(
+    options: Mapping[str, Any], latitude: float, longitude: float
+) -> BuildingProfile:
+    """Building profile from the options flow, with sane fallbacks."""
     raw_type = options.get(CONF_BUILDING_TYPE, BuildingType.UNKNOWN.value)
     try:
         building_type = BuildingType(raw_type)
@@ -360,6 +364,7 @@ def read_float(hass: HomeAssistant, entity_id: str | None) -> float | None:
 
 
 def read_bool(hass: HomeAssistant, entity_id: str | None) -> bool | None:
+    """Truthiness of an entity state, or ``None`` if it is not usable."""
     if not entity_id:
         return None
     state = hass.states.get(entity_id)
@@ -369,6 +374,7 @@ def read_bool(hass: HomeAssistant, entity_id: str | None) -> bool | None:
 
 
 def read_attribute(hass: HomeAssistant, entity_id: str | None, attribute: str) -> Any:
+    """One attribute of an entity, or ``None``."""
     if not entity_id:
         return None
     state = hass.states.get(entity_id)
@@ -378,6 +384,7 @@ def read_attribute(hass: HomeAssistant, entity_id: str | None, attribute: str) -
 
 
 def last_changed(hass: HomeAssistant, entity_id: str | None) -> datetime | None:
+    """When an entity last changed, used for the staleness check."""
     if not entity_id:
         return None
     state = hass.states.get(entity_id)
@@ -404,8 +411,8 @@ def build_outdoor(
         # Nothing usable at all: report stale rather than invent a number.
         return OutdoorState(temperature=0.0, source="weather", is_stale=True)
 
-    source = "mixed" if sensor_used and weather is not None else (
-        "sensor" if sensor_used else "weather"
+    source = (
+        "mixed" if sensor_used and weather is not None else ("sensor" if sensor_used else "weather")
     )
 
     stale = False
@@ -432,13 +439,12 @@ def build_outdoor(
 
 
 def build_sun(hass: HomeAssistant, entity_id: str, building: BuildingProfile) -> SunState:
+    """Sun position from ``sun.sun``, computed ourselves if it is missing."""
     state = hass.states.get(entity_id)
     if state is None:
         from .engine.solar import sun_position
 
-        elevation, azimuth = sun_position(
-            dt_util.utcnow(), building.latitude, building.longitude
-        )
+        elevation, azimuth = sun_position(dt_util.utcnow(), building.latitude, building.longitude)
         return SunState(
             azimuth=azimuth,
             elevation=elevation,
@@ -455,9 +461,7 @@ def build_sun(hass: HomeAssistant, entity_id: str, building: BuildingProfile) ->
     )
 
 
-def build_rooms(
-    hass: HomeAssistant, configs: Iterable[RoomConfig]
-) -> tuple[RoomState, ...]:
+def build_rooms(hass: HomeAssistant, configs: Iterable[RoomConfig]) -> tuple[RoomState, ...]:
     """Build every room, then fill the sensorless ones from the fallback chain."""
     configs = list(configs)
     rooms: dict[str, RoomState] = {}
@@ -466,12 +470,8 @@ def build_rooms(
         rooms[config.id] = _build_measured_room(hass, config)
 
     measured = [r for r in rooms.values() if r.temperature is not None]
-    average = (
-        sum(r.temperature or 0.0 for r in measured) / len(measured) if measured else None
-    )
-    average_humidity = _average(
-        [r.humidity for r in measured if r.humidity is not None]
-    )
+    average = sum(r.temperature or 0.0 for r in measured) / len(measured) if measured else None
+    average_humidity = _average([r.humidity for r in measured if r.humidity is not None])
 
     for config in configs:
         room = rooms[config.id]
@@ -589,9 +589,8 @@ def _with_estimate(
     )
 
 
-def build_windows(
-    hass: HomeAssistant, configs: Iterable[WindowConfig]
-) -> tuple[WindowState, ...]:
+def build_windows(hass: HomeAssistant, configs: Iterable[WindowConfig]) -> tuple[WindowState, ...]:
+    """Window state, including tilt detection and cover position."""
     windows: list[WindowState] = []
     for config in configs:
         contact = hass.states.get(config.contact_sensor) if config.contact_sensor else None
@@ -783,7 +782,7 @@ def _optional_float(value: Any) -> float | None:
 
 def _optional_int(value: Any) -> int | None:
     number = _as_float(value)
-    return None if number is None else int(round(number))
+    return None if number is None else round(number)
 
 
 def _as_datetime(value: Any) -> datetime | None:
@@ -810,9 +809,7 @@ def _average(values: list[float]) -> float | None:
 
 def next_occurrence(reference: datetime, target: time) -> datetime:
     """Next wall-clock occurrence of ``target`` after ``reference``."""
-    candidate = reference.replace(
-        hour=target.hour, minute=target.minute, second=0, microsecond=0
-    )
+    candidate = reference.replace(hour=target.hour, minute=target.minute, second=0, microsecond=0)
     if candidate <= reference:
         candidate += timedelta(days=1)
     return candidate

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -16,7 +16,6 @@ from adaptive_ventilation.engine.state import (
     WindowState,
 )
 
-UTC = timezone.utc
 NOW = datetime(2025, 7, 15, 22, 0, tzinfo=UTC)
 
 
@@ -106,18 +105,14 @@ def test_night_cooling_rate_matches_building_table(
 def test_learned_rate_overrides_the_model() -> None:
     room = _room(temperature=28.0, volume=60.0)
     learned = LearnedRoom(night_cooling_k_per_h=2.0, samples=14)
-    rate = thermal.cooling_rate_k_per_h(
-        room, [_window(area=2.0)], 18.0, BuildingProfile(), learned
-    )
+    rate = thermal.cooling_rate_k_per_h(room, [_window(area=2.0)], 18.0, BuildingProfile(), learned)
     assert rate == pytest.approx(2.0, abs=0.01)
 
 
 def test_learned_value_ignored_below_minimum_samples() -> None:
     room = _room(temperature=28.0, volume=60.0)
     learned = LearnedRoom(night_cooling_k_per_h=2.0, samples=1)
-    rate = thermal.cooling_rate_k_per_h(
-        room, [_window(area=2.0)], 18.0, BuildingProfile(), learned
-    )
+    rate = thermal.cooling_rate_k_per_h(room, [_window(area=2.0)], 18.0, BuildingProfile(), learned)
     assert rate != pytest.approx(2.0, abs=0.01)
 
 
@@ -236,15 +231,26 @@ def test_simulation_with_open_window_ends_cooler() -> None:
     building = BuildingProfile()
 
     closed = thermal.simulate(
-        room, windows, forecast, building, LearnedRoom(),
-        thermal.VentilationPlan(label="closed"), start=NOW, hours=8.0,
+        room,
+        windows,
+        forecast,
+        building,
+        LearnedRoom(),
+        thermal.VentilationPlan(label="closed"),
+        start=NOW,
+        hours=8.0,
     )
     opened = thermal.simulate(
-        room, windows, forecast, building, LearnedRoom(),
+        room,
+        windows,
+        forecast,
+        building,
+        LearnedRoom(),
         thermal.VentilationPlan(
             label="open", open_from=NOW, open_until=NOW + timedelta(hours=8), window_ids=("w",)
         ),
-        start=NOW, hours=8.0,
+        start=NOW,
+        hours=8.0,
     )
     assert opened.end_temperature < closed.end_temperature - 1.0
     # And it must not overshoot below the outdoor temperature.
@@ -253,8 +259,13 @@ def test_simulation_with_open_window_ends_cooler() -> None:
 
 def test_simulation_is_deterministic() -> None:
     room = _room(temperature=26.0)
-    args = ([_window()], _forecast([20.0] * 26), BuildingProfile(), LearnedRoom(),
-            thermal.VentilationPlan(label="x"))
+    args = (
+        [_window()],
+        _forecast([20.0] * 26),
+        BuildingProfile(),
+        LearnedRoom(),
+        thermal.VentilationPlan(label="x"),
+    )
     first = thermal.simulate(room, *args, start=NOW, hours=6.0)
     second = thermal.simulate(room, *args, start=NOW, hours=6.0)
     assert first.points == second.points

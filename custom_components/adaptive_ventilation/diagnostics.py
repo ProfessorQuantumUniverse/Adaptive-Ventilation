@@ -75,12 +75,9 @@ def build_diagnostics(coordinator: AdaptiveVentilationCoordinator) -> dict[str, 
         "engine_version": ENGINE_VERSION,
         "rules": sorted(REGISTRY),
         "options": async_redact_data(dict(coordinator.config_entry.options), TO_REDACT),
-        "rooms": [
-            async_redact_data(_plain(room), TO_REDACT) for room in coordinator.config.rooms
-        ],
+        "rooms": [async_redact_data(_plain(room), TO_REDACT) for room in coordinator.config.rooms],
         "windows": [
-            async_redact_data(_plain(window), TO_REDACT)
-            for window in coordinator.config.windows
+            async_redact_data(_plain(window), TO_REDACT) for window in coordinator.config.windows
         ],
         "mode": coordinator.mode.value,
         "purge_active": {k: v.isoformat() for k, v in coordinator.purge_active.items()},

@@ -19,6 +19,7 @@ async def async_setup_entry(
     entry: AdaptiveVentilationConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+    """Set up the entities for one config entry."""
     coordinator = entry.runtime_data
     async_add_entities(
         [

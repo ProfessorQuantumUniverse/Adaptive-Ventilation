@@ -9,9 +9,9 @@ hours, manual hold).
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import replace
 from datetime import timedelta
-from typing import Iterable, Sequence
 
 from .context import EvaluationContext
 from .state import (
@@ -47,7 +47,6 @@ def arbitrate(
     """Return ``(active, suppressed)`` recommendations."""
     state = ctx.state
     memory = ctx.memory
-    prefs = state.preferences
 
     if state.mode is Mode.OFF:
         return [], list(candidates)
@@ -207,9 +206,7 @@ def _apply_minimum_dwell(
     )
 
 
-def _apply_notification_policy(
-    ctx: EvaluationContext, rec: Recommendation
-) -> Recommendation:
+def _apply_notification_policy(ctx: EvaluationContext, rec: Recommendation) -> Recommendation:
     """Decide whether this recommendation may be pushed."""
     memory = ctx.memory
     prefs = ctx.preferences
@@ -273,9 +270,7 @@ def _contradicted(window: WindowState, action: Action) -> bool:
     return False
 
 
-def determine_global_state(
-    ctx: EvaluationContext, active: Iterable[Recommendation]
-) -> GlobalState:
+def determine_global_state(ctx: EvaluationContext, active: Iterable[Recommendation]) -> GlobalState:
     """Collapse everything into the single state machine value."""
     state = ctx.state
     recommendations = list(active)
@@ -297,9 +292,10 @@ def determine_global_state(
         return GlobalState.NIGHT_FLUSH if state.is_night else GlobalState.VENTILATE_NOW
     if any(r.action in OPENING_ACTIONS for r in recommendations):
         return GlobalState.VENTILATE_NOW
-    if any(r.action in COVER_ACTIONS and r.action is Action.COVER_DOWN for r in recommendations):
-        if ctx.season is Season.SUMMER:
-            return GlobalState.HEAT_PROTECTION
+    if ctx.season is Season.SUMMER and any(
+        r.action in COVER_ACTIONS and r.action is Action.COVER_DOWN for r in recommendations
+    ):
+        return GlobalState.HEAT_PROTECTION
     if any(r.action in CLOSING_ACTIONS for r in recommendations):
         return GlobalState.KEEP_CLOSED
     return GlobalState.IDLE

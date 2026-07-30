@@ -11,7 +11,7 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations):  # noqa: ANN001, ANN201
+def auto_enable_custom_integrations(enable_custom_integrations):
     """Let Home Assistant load ``custom_components/adaptive_ventilation``.
 
     ``enable_custom_integrations`` comes from

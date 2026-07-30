@@ -1,0 +1,124 @@
+# Home Assistant integration quality scale.
+# Target: silver. Gold needs things a calculated integration cannot have
+# (device discovery, dynamic devices) or has not earned yet (a real translation
+# review, documented energy support).
+
+rules:
+  # -- Bronze ------------------------------------------------------------
+  action-setup: done
+  appropriate-polling:
+    status: done
+    comment: >-
+      Two minute coordinator interval plus a debounced refresh on every tracked
+      state change. The engine is pure computation, there is nothing to poll
+      over the network except the hourly forecast, which is cached for 20 min.
+  brands:
+    status: todo
+    comment: Icon and logo still have to be submitted to home-assistant/brands.
+  common-modules: done
+  config-flow-test-coverage:
+    status: done
+    comment: tests/hass/test_integration.py covers the user flow, both subentry flows and the options flow.
+  config-flow: done
+  dependency-transparency:
+    status: done
+    comment: No third party requirements at all.
+  docs-actions: done
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  entity-event-setup:
+    status: exempt
+    comment: Entities read from the coordinator; no per-entity subscriptions.
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure:
+    status: exempt
+    comment: >-
+      There is no device or service to reach. Missing or unusable sources are
+      reported as repair issues instead of blocking setup, so a partially
+      configured flat still produces safety recommendations.
+  test-before-setup:
+    status: done
+    comment: async_config_entry_first_refresh raises UpdateFailed if the world cannot be built.
+  unique-config-entry:
+    status: done
+    comment: One entry per flat; a second identical entry is aborted.
+
+  # -- Silver ------------------------------------------------------------
+  action-exceptions: done
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable:
+    status: done
+    comment: >-
+      Entities are unavailable until the first evaluation. Stale sensor data
+      surfaces as the unavailable_data state rather than as dead entities, so
+      the user can see *why* nothing is being recommended.
+  integration-owner: done
+  log-when-unavailable: done
+  parallel-updates:
+    status: exempt
+    comment: All entities are read-only views of one coordinator result.
+  reauthentication-flow:
+    status: exempt
+    comment: No authentication of any kind.
+  test-coverage:
+    status: done
+    comment: >-
+      254 tests, including all fifteen mandatory scenarios, randomised property
+      tests over the whole rule set and the anti-flapping loop.
+
+  # -- Gold --------------------------------------------------------------
+  devices: done
+  diagnostics: done
+  discovery:
+    status: exempt
+    comment: Nothing to discover - the integration is pure computation.
+  discovery-update-info:
+    status: exempt
+    comment: See discovery.
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices:
+    status: exempt
+    comment: Works with any temperature, humidity, CO2, particulate and contact sensor.
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: Rooms and windows are added deliberately as subentries, not discovered.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: done
+    comment: The number entities for live tuning are disabled by default.
+  entity-translations: done
+  exception-translations: done
+  icon-translations:
+    status: todo
+    comment: Entities use _attr_icon; a proper icons.json is still outstanding.
+  reconfiguration-flow:
+    status: done
+    comment: Both subentry types support reconfigure; global settings live in the options flow.
+  repair-issues: done
+  stale-devices:
+    status: done
+    comment: async_remove_config_entry_device allows removing a room or window whose subentry is gone.
+
+  # -- Platinum ----------------------------------------------------------
+  async-dependency:
+    status: exempt
+    comment: No dependencies.
+  inject-websession:
+    status: exempt
+    comment: No HTTP client.
+  strict-typing:
+    status: partial
+    comment: >-
+      engine/ passes mypy --strict. The Home Assistant layer is fully annotated
+      but not strict, because large parts of the HA API are still untyped.

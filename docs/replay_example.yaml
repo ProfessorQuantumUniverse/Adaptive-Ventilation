@@ -1,0 +1,91 @@
+# Example mapping for scripts/replay.py.
+#
+# It tells the replay which recorded entity is which. Everything except the
+# outdoor temperature is optional - the engine degrades gracefully, which is
+# exactly what you want to observe while tuning.
+#
+#   python scripts/replay.py --csv history.csv --map docs/replay_example.yaml -v
+
+building:
+  type: old_renovated      # old_massive | old_renovated | new_insulated | lightweight | half_timbered
+  floor: 2
+  top_floor: false
+  latitude: 50.11
+  longitude: 8.68
+
+outdoor:
+  temperature: sensor.outdoor_temperature
+  humidity: sensor.outdoor_humidity
+  pm25: sensor.outdoor_pm25
+  wind_speed: sensor.outdoor_wind_speed
+  wind_bearing: sensor.outdoor_wind_bearing
+  pressure: sensor.outdoor_pressure
+
+# Anything you would set in the options flow can be overridden here, which is
+# the whole point: change a number, re-run, compare the notification count.
+preferences:
+  co2_threshold: 1000
+  delta_t_hysteresis: 0.5
+  min_state_duration_minutes: 15
+  cooldown_minutes: 60
+  max_pushes_per_day: 6
+  quiet_hours_start: "22:00"
+  quiet_hours_end: "07:00"
+
+rooms:
+  - id: bedroom
+    name: Bedroom
+    temperature: sensor.bedroom_temperature
+    humidity: sensor.bedroom_humidity
+    co2: sensor.bedroom_co2
+    volume: 40
+    priority: 1
+    bedroom: true
+    connected: [hallway]
+
+  - id: living_room
+    name: Living room
+    temperature: sensor.living_room_temperature
+    humidity: sensor.living_room_humidity
+    volume: 60
+    priority: 2
+    connected: [hallway]
+
+  - id: bathroom
+    name: Bathroom
+    temperature: sensor.bathroom_temperature
+    humidity: sensor.bathroom_humidity
+    volume: 12
+    priority: 4
+    moisture_source: true
+    connected: [hallway]
+
+  - id: hallway
+    name: Hallway
+    volume: 20
+    priority: 6
+    connected: [bedroom, living_room, bathroom]
+
+windows:
+  - id: bedroom_east
+    name: Bedroom east
+    room: bedroom
+    contact: binary_sensor.bedroom_window
+    azimuth: 95
+    area: 1.5
+
+  - id: living_south
+    name: Living room south
+    room: living_room
+    contact: binary_sensor.living_room_window
+    azimuth: 190
+    area: 2.4
+    cover: cover.living_room
+    cover_external: true
+
+  - id: bathroom_north
+    name: Bathroom north
+    room: bathroom
+    contact: binary_sensor.bathroom_window
+    azimuth: 10
+    area: 0.6

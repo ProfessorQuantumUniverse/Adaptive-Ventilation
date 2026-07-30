@@ -27,10 +27,12 @@ def purge_windows(ctx: EvaluationContext, room: RoomState) -> tuple[list[WindowS
 
 
 def purge_action(cross: bool) -> Action:
+    """Cross ventilation gets its own action so the text can say so."""
     return Action.CROSS_VENTILATE if cross else Action.PURGE
 
 
 def rooms_with_windows(ctx: EvaluationContext) -> list[RoomState]:
+    """Only rooms the engine can actually do something about."""
     return [room for room in ctx.rooms if ctx.windows_of(room)]
 
 
@@ -41,8 +43,10 @@ def blocked_by_outdoor_air(ctx: EvaluationContext) -> bool:
 
 
 def confidence_of(room: RoomState) -> float:
+    """Confidence of a room, for readability at the call site."""
     return room.confidence
 
 
 def round_or_none(value: float | None, digits: int = 1) -> float | None:
+    """Round a value that may be missing."""
     return None if value is None else round(value, digits)

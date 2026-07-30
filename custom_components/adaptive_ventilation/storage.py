@@ -6,10 +6,11 @@ home, and so migrations stay readable when the schema changes.
 
 from __future__ import annotations
 
-import logging
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
-from typing import Any, Mapping
+import logging
+from typing import Any
 
 from homeassistant.util import dt as dt_util
 
@@ -33,6 +34,7 @@ LEARNED_SCHEMA_VERSION = 1
 
 
 def serialize_memory(memory: EngineMemory) -> dict[str, Any]:
+    """Engine memory to a JSON friendly dict."""
     return {
         "schema": MEMORY_SCHEMA_VERSION,
         "targets": {
@@ -57,6 +59,7 @@ def serialize_memory(memory: EngineMemory) -> dict[str, Any]:
 
 
 def deserialize_memory(raw: Mapping[str, Any]) -> EngineMemory:
+    """Restore the engine memory, tolerating anything unexpected."""
     memory = EngineMemory()
     version = raw.get("schema", 1)
     if version > MEMORY_SCHEMA_VERSION:
@@ -98,6 +101,7 @@ def deserialize_memory(raw: Mapping[str, Any]) -> EngineMemory:
 
 
 def serialize_learned(learned: LearnedParameters) -> dict[str, Any]:
+    """Learned parameters to a JSON friendly dict."""
     return {
         "schema": LEARNED_SCHEMA_VERSION,
         "version": learned.version,
@@ -121,6 +125,7 @@ def serialize_learned(learned: LearnedParameters) -> dict[str, Any]:
 
 
 def deserialize_learned(raw: Mapping[str, Any]) -> LearnedParameters:
+    """Restore the learned parameters, ignoring a future schema."""
     version = raw.get("schema", 1)
     if version > LEARNED_SCHEMA_VERSION:
         _LOGGER.warning("Stored calibration is newer than this version - ignoring it")
@@ -144,9 +149,7 @@ def deserialize_learned(raw: Mapping[str, Any]) -> LearnedParameters:
     return LearnedParameters(
         version=int(raw.get("version", 1)),
         rooms=rooms,
-        window_azimuth={
-            k: float(v) for k, v in (raw.get("window_azimuth") or {}).items()
-        },
+        window_azimuth={k: float(v) for k, v in (raw.get("window_azimuth") or {}).items()},
     )
 
 

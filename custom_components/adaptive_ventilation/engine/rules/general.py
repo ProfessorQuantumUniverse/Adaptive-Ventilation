@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from ..context import EvaluationContext
 from ..state import Action, Priority, Recommendation, clamp
@@ -60,7 +60,7 @@ def internal_load(ctx: EvaluationContext) -> Iterable[Recommendation]:
     for room in state.rooms:
         if not room.internal_load_w or room.internal_load_w < INTERNAL_LOAD_W:
             continue
-        windows, cross = purge_windows(ctx, room)
+        windows, _cross = purge_windows(ctx, room)
         if not windows:
             continue
         delta_t = state.delta_t(room)

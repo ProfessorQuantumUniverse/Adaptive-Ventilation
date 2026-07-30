@@ -8,9 +8,9 @@ stale advice on the lock screen.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant, callback
@@ -53,9 +53,7 @@ class SentNotification:
 class NotificationManager:
     """Owns everything that leaves the house as a push message."""
 
-    def __init__(
-        self, hass: HomeAssistant, coordinator: AdaptiveVentilationCoordinator
-    ) -> None:
+    def __init__(self, hass: HomeAssistant, coordinator: AdaptiveVentilationCoordinator) -> None:
         self.hass = hass
         self.coordinator = coordinator
         self._sent: dict[str, SentNotification] = {}
@@ -94,10 +92,9 @@ class NotificationManager:
             if previous is not None and previous.reason_key == rec.reason_key:
                 continue  # already on screen and unchanged
 
-            if rec.priority is not Priority.SAFETY:
-                if self.coordinator.memory.pushes_left(now, limit) <= 0:
-                    _LOGGER.debug("daily push limit reached, holding back %s", rec.id)
-                    continue
+            if not self.coordinator.memory.may_push(rec.priority, now, limit):
+                _LOGGER.debug("daily push budget exhausted, holding back %s", rec.id)
+                continue
 
             await self._send(rec, targets, now)
 
@@ -119,9 +116,7 @@ class NotificationManager:
     # Sending
     # ------------------------------------------------------------------
 
-    async def _send(
-        self, rec: Recommendation, targets: list[str], now: datetime
-    ) -> None:
+    async def _send(self, rec: Recommendation, targets: list[str], now: datetime) -> None:
         language = messages.resolve_language(self.hass.config.language)
         body = messages.render(rec.reason_key, rec.reason_data, language)
         if rec.expected_benefit:
@@ -167,15 +162,18 @@ class NotificationManager:
             reason_key=rec.reason_key,
             action=rec.action,
         )
-        self.coordinator.memory.note_push(now)
-        tracked = self.coordinator.memory.target(rec.target)
-        tracked.last_notified = now
+        self.coordinator.memory.register_push(
+            rec.id,
+            rec.target,
+            now,
+            int(self.coordinator.config.options.get("cooldown_minutes", 60)),
+        )
 
     async def _call_notify(self, target: str, payload: dict[str, Any]) -> None:
         service = target.removeprefix("notify.")
         try:
             await self.hass.services.async_call("notify", service, payload, blocking=False)
-        except Exception as err:  # noqa: BLE001 - one broken target must not stop the rest
+        except Exception as err:
             _LOGGER.warning("could not notify %s: %s", target, err)
 
     # ------------------------------------------------------------------
@@ -238,13 +236,14 @@ def _icon(action: Action) -> str:
 
 
 def cooldown_until(now: datetime, minutes: int) -> datetime:
+    """End of a cooldown window."""
     return now + timedelta(minutes=minutes)
 
 
 __all__ = [
-    "NotificationManager",
     "SERVICE_ACKNOWLEDGE",
     "SERVICE_SNOOZE",
+    "NotificationManager",
     "cooldown_until",
     "dt_util",
 ]

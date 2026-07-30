@@ -14,8 +14,8 @@ glass has already let the energy in.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 import math
-from datetime import datetime, timedelta, timezone
 from typing import Final
 
 from .state import SunState, WindowState, bearing_difference
@@ -34,24 +34,15 @@ DEFAULT_G_VALUE: Final = 0.6
 
 def _julian_day(moment: datetime) -> float:
     """Julian day number for a timezone-aware datetime."""
-    utc = moment.astimezone(timezone.utc)
+    utc = moment.astimezone(UTC)
     year, month = utc.year, utc.month
-    day = (
-        utc.day
-        + (utc.hour + (utc.minute + (utc.second / 60.0)) / 60.0) / 24.0
-    )
+    day = utc.day + (utc.hour + (utc.minute + (utc.second / 60.0)) / 60.0) / 24.0
     if month <= 2:
         year -= 1
         month += 12
     a = year // 100
     b = 2 - a + a // 4
-    return (
-        math.floor(365.25 * (year + 4716))
-        + math.floor(30.6001 * (month + 1))
-        + day
-        + b
-        - 1524.5
-    )
+    return math.floor(365.25 * (year + 4716)) + math.floor(30.6001 * (month + 1)) + day + b - 1524.5
 
 
 def sun_position(moment: datetime, latitude: float, longitude: float) -> tuple[float, float]:
@@ -77,10 +68,7 @@ def sun_position(moment: datetime, latitude: float, longitude: float) -> tuple[f
     omega = 125.04 - 1934.136 * t
     apparent_longitude = true_longitude - 0.00569 - 0.00478 * math.sin(math.radians(omega))
 
-    obliquity = (
-        23.0
-        + (26.0 + ((21.448 - t * (46.815 + t * (0.00059 - t * 0.001813)))) / 60.0) / 60.0
-    )
+    obliquity = 23.0 + (26.0 + (21.448 - t * (46.815 + t * (0.00059 - t * 0.001813))) / 60.0) / 60.0
     obliquity_corrected = obliquity + 0.00256 * math.cos(math.radians(omega))
 
     lambda_rad = math.radians(apparent_longitude)
@@ -97,7 +85,7 @@ def sun_position(moment: datetime, latitude: float, longitude: float) -> tuple[f
         - 1.25 * eccentricity * eccentricity * math.sin(2 * m_rad)
     )
 
-    utc = moment.astimezone(timezone.utc)
+    utc = moment.astimezone(UTC)
     minutes = utc.hour * 60.0 + utc.minute + utc.second / 60.0
     true_solar_time = (minutes + equation_of_time + 4.0 * longitude) % 1440.0
     hour_angle = true_solar_time / 4.0 - 180.0
@@ -136,9 +124,8 @@ def air_mass(elevation: float) -> float:
     """Relative optical air mass (Kasten & Young 1989)."""
     if elevation <= 0.0:
         return 40.0
-    return 1.0 / (
-        math.sin(math.radians(elevation))
-        + 0.50572 * (6.07995 + elevation) ** -1.6364
+    return float(
+        1.0 / (math.sin(math.radians(elevation)) + 0.50572 * (6.07995 + elevation) ** -1.6364)
     )
 
 
@@ -146,7 +133,7 @@ def clear_sky_direct(elevation: float) -> float:
     """Direct normal irradiance for a clear sky in W/m²."""
     if elevation <= 0.0:
         return 0.0
-    return SOLAR_CONSTANT * CLEAR_SKY_TRANSMITTANCE ** (air_mass(elevation) ** 0.678)
+    return float(SOLAR_CONSTANT * CLEAR_SKY_TRANSMITTANCE ** (air_mass(elevation) ** 0.678))
 
 
 def clear_sky_diffuse(elevation: float) -> float:
@@ -161,7 +148,7 @@ def cloud_factor(cloud_coverage: float | None) -> float:
     if cloud_coverage is None:
         return 1.0
     cover = max(0.0, min(100.0, cloud_coverage)) / 100.0
-    return max(0.0, 1.0 - CLOUD_ATTENUATION * cover**3.4)
+    return float(max(0.0, 1.0 - CLOUD_ATTENUATION * cover**3.4))
 
 
 def incidence_cosine(sun_elevation: float, sun_azimuth: float, window_azimuth: float) -> float:

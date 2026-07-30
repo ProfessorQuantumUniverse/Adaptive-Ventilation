@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import logging
+from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from typing import Any, Mapping
+import logging
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
@@ -25,7 +26,6 @@ from .const import (
     CONF_CALENDAR_ENTITY,
     CONF_COVER_AUTOMATION,
     CONF_DISABLED_RULES,
-    CONF_MODE,
     CONF_PRESENCE_ENTITY,
     CONF_SUN_ENTITY,
     CONF_WEATHER_ALERT_ENTITY,
@@ -82,9 +82,7 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
 
     config_entry: AdaptiveVentilationConfigEntry
 
-    def __init__(
-        self, hass: HomeAssistant, entry: AdaptiveVentilationConfigEntry
-    ) -> None:
+    def __init__(self, hass: HomeAssistant, entry: AdaptiveVentilationConfigEntry) -> None:
         super().__init__(
             hass,
             _LOGGER,
@@ -157,9 +155,7 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
                 rooms.append(RoomConfig.from_subentry(subentry_id, subentry.data))
             elif subentry.subentry_type == SUBENTRY_WINDOW:
                 windows.append(WindowConfig.from_subentry(subentry_id, subentry.data))
-        self.config = ParsedConfig(
-            rooms=rooms, windows=windows, options=dict(entry.options)
-        )
+        self.config = ParsedConfig(rooms=rooms, windows=windows, options=dict(entry.options))
 
     @callback
     def _subscribe(self) -> None:
@@ -230,9 +226,7 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
     async def async_build_world(self) -> WorldState:
         """Read every configured entity and assemble the engine input."""
         options = self.config.options
-        building = build_building(
-            options, self.hass.config.latitude, self.hass.config.longitude
-        )
+        building = build_building(options, self.hass.config.latitude, self.hass.config.longitude)
         weather_entity = options.get(CONF_WEATHER_ENTITY)
         weather_state = self.hass.states.get(weather_entity) if weather_entity else None
 
@@ -245,9 +239,7 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
             rooms=build_rooms(self.hass, self.config.rooms),
             windows=build_windows(self.hass, self.config.windows),
             forecast=forecast,
-            sun=build_sun(
-                self.hass, options.get(CONF_SUN_ENTITY, DEFAULT_SUN_ENTITY), building
-            ),
+            sun=build_sun(self.hass, options.get(CONF_SUN_ENTITY, DEFAULT_SUN_ENTITY), building),
             mode=self.mode,
             presence=True if presence is None else presence,
             weather_alerts=build_alerts(self.hass, options.get(CONF_WEATHER_ALERT_ENTITY)),
@@ -277,7 +269,7 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
                 blocking=True,
                 return_response=True,
             )
-        except Exception as err:  # noqa: BLE001 - a missing forecast must not break the run
+        except Exception as err:
             _LOGGER.debug("hourly forecast unavailable for %s: %s", weather_entity, err)
             return self._forecast
 
@@ -293,15 +285,11 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
     # ------------------------------------------------------------------
 
     async def _fire_recommendation_events(self, result: EvaluationResult) -> None:
-        current = {
-            rec.id for rec in result.recommendations if rec.action is not Action.NO_ACTION
-        }
+        current = {rec.id for rec in result.recommendations if rec.action is not Action.NO_ACTION}
         for rec in result.recommendations:
             if rec.id in self._previous_ids or rec.action is Action.NO_ACTION:
                 continue
-            self.hass.bus.async_fire(
-                EVENT_RECOMMENDATION_ADDED, _recommendation_payload(rec)
-            )
+            self.hass.bus.async_fire(EVENT_RECOMMENDATION_ADDED, _recommendation_payload(rec))
         for stale in self._previous_ids - current:
             self.hass.bus.async_fire(EVENT_RECOMMENDATION_CLEARED, {"id": stale})
         self._previous_ids = current
@@ -397,9 +385,7 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
             minutes = duration_minutes
             if minutes is None and result is not None:
                 candidates = [
-                    rec.duration_minutes
-                    for rec in result.for_room(target)
-                    if rec.duration_minutes
+                    rec.duration_minutes for rec in result.for_room(target) if rec.duration_minutes
                 ]
                 minutes = min(candidates) if candidates else None
             if minutes is None and self.world is not None:
@@ -420,9 +406,7 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
         await self.async_request_refresh()
         return {"started": started}
 
-    async def async_snooze(
-        self, recommendation_id: str | None, scope: str = "1h"
-    ) -> None:
+    async def async_snooze(self, recommendation_id: str | None, scope: str = "1h") -> None:
         now = dt_util.utcnow()
         ids: list[str] = []
         if recommendation_id:
@@ -434,9 +418,7 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
             if scope == "today":
                 self.memory.ignore_today(rec_id, dt_util.as_local(now))
             elif scope == "until_evening":
-                evening = dt_util.as_local(now).replace(
-                    hour=18, minute=0, second=0, microsecond=0
-                )
+                evening = dt_util.as_local(now).replace(hour=18, minute=0, second=0, microsecond=0)
                 if evening <= dt_util.as_local(now):
                     evening += timedelta(days=1)
                 self.memory.snooze(rec_id, dt_util.as_utc(evening))

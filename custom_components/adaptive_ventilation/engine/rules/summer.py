@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import timedelta
-from typing import Iterable
 
 from .. import thermal
 from ..context import EvaluationContext
@@ -70,7 +70,7 @@ def night_flush(ctx: EvaluationContext) -> Iterable[Recommendation]:
         potential = ctx.night_potential.get(room.id, 0.0)
         rate = thermal.cooling_rate_k_per_h(
             room,
-            [w for w in windows],
+            list(windows),
             state.outdoor.temperature,
             state.building,
             ctx.learned(room.id),

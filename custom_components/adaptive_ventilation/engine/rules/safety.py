@@ -7,8 +7,8 @@ drops every candidate that collides with an active veto.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import timedelta
-from typing import Iterable
 
 from ..context import EvaluationContext
 from ..state import (
@@ -96,21 +96,29 @@ def rain_incoming(ctx: EvaluationContext) -> Iterable[Recommendation]:
         return
 
     first = soon[0] if soon else None
-    minutes = 0 if raining_now else int((first.time - state.now).total_seconds() / 60) if first else 30
+    if raining_now:
+        minutes = 0
+    elif first is not None:
+        minutes = int((first.time - state.now).total_seconds() / 60)
+    else:
+        minutes = 30
     wind_bearing = state.outdoor.wind_bearing
     data = {
         "minutes": minutes,
         "probability": round(first.precipitation_probability or 0.0) if first else 100,
-        "amount": round(first.precipitation or 0.0, 1) if first else round(state.outdoor.precipitation or 0.0, 1),
+        "amount": round((first.precipitation if first else state.outdoor.precipitation) or 0.0, 1),
     }
 
     for window in state.windows:
         if window.rain_safe:
             continue
-        if wind_bearing is not None and bearing_difference(wind_bearing, window.azimuth) > WEATHER_SIDE_DEGREES:
-            # Rain is driven away from this facade; only warn when wide open.
-            if not window.is_open or window.is_tilted:
-                continue
+        driven_away = (
+            wind_bearing is not None
+            and bearing_difference(wind_bearing, window.azimuth) > WEATHER_SIDE_DEGREES
+        )
+        # Rain is driven away from this facade; only warn when wide open.
+        if driven_away and (not window.is_open or window.is_tilted):
+            continue
         yield make(
             ctx,
             "rain_incoming",

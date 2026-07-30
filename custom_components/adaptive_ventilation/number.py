@@ -57,12 +57,8 @@ TUNING: tuple[TuningNumber, ...] = (
     TuningNumber(CONF_WEIGHT_HUMIDITY, 0, 100, 5, PERCENTAGE, "mdi:water-percent"),
     TuningNumber(CONF_WEIGHT_CO2, 0, 100, 5, PERCENTAGE, "mdi:molecule-co2"),
     TuningNumber(CONF_WEIGHT_PARTICULATE, 0, 100, 5, PERCENTAGE, "mdi:blur"),
-    TuningNumber(
-        CONF_SUMMER_MIN, 15, 28, 0.5, UnitOfTemperature.CELSIUS, "mdi:sun-thermometer"
-    ),
-    TuningNumber(
-        CONF_SUMMER_MAX, 18, 32, 0.5, UnitOfTemperature.CELSIUS, "mdi:sun-thermometer"
-    ),
+    TuningNumber(CONF_SUMMER_MIN, 15, 28, 0.5, UnitOfTemperature.CELSIUS, "mdi:sun-thermometer"),
+    TuningNumber(CONF_SUMMER_MAX, 18, 32, 0.5, UnitOfTemperature.CELSIUS, "mdi:sun-thermometer"),
     TuningNumber(
         CONF_WINTER_MIN, 14, 24, 0.5, UnitOfTemperature.CELSIUS, "mdi:snowflake-thermometer"
     ),
@@ -71,16 +67,10 @@ TUNING: tuple[TuningNumber, ...] = (
     ),
     TuningNumber(CONF_CO2_THRESHOLD, 600, 2000, 50, PPM, "mdi:molecule-co2", NumberMode.BOX),
     TuningNumber(CONF_PM25_INDOOR, 5, 100, 1, MICROGRAMS, "mdi:blur", NumberMode.BOX),
-    TuningNumber(
-        CONF_DELTA_T_HYSTERESIS, 0.1, 3.0, 0.1, UnitOfTemperature.KELVIN, "mdi:sine-wave"
-    ),
-    TuningNumber(
-        CONF_MIN_STATE_DURATION, 5, 120, 5, UnitOfTime.MINUTES, "mdi:timer-lock-outline"
-    ),
+    TuningNumber(CONF_DELTA_T_HYSTERESIS, 0.1, 3.0, 0.1, UnitOfTemperature.KELVIN, "mdi:sine-wave"),
+    TuningNumber(CONF_MIN_STATE_DURATION, 5, 120, 5, UnitOfTime.MINUTES, "mdi:timer-lock-outline"),
     TuningNumber(CONF_COOLDOWN, 10, 240, 10, UnitOfTime.MINUTES, "mdi:timer-refresh-outline"),
-    TuningNumber(
-        CONF_CLOSE_LEAD_TIME, 5, 120, 5, UnitOfTime.MINUTES, "mdi:clock-alert-outline"
-    ),
+    TuningNumber(CONF_CLOSE_LEAD_TIME, 5, 120, 5, UnitOfTime.MINUTES, "mdi:clock-alert-outline"),
     TuningNumber(CONF_MAX_PUSHES, 0, 30, 1, None, "mdi:bell-outline", NumberMode.BOX),
 )
 
@@ -90,6 +80,7 @@ async def async_setup_entry(
     entry: AdaptiveVentilationConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+    """Set up the entities for one config entry."""
     coordinator = entry.runtime_data
     async_add_entities(TuningNumberEntity(coordinator, spec) for spec in TUNING)
 
@@ -99,9 +90,7 @@ class TuningNumberEntity(AdaptiveVentilationEntity, NumberEntity):
 
     _attr_entity_registry_enabled_default = False
 
-    def __init__(
-        self, coordinator: AdaptiveVentilationCoordinator, spec: TuningNumber
-    ) -> None:
+    def __init__(self, coordinator: AdaptiveVentilationCoordinator, spec: TuningNumber) -> None:
         super().__init__(coordinator, spec.key)
         self._spec = spec
         self._attr_native_min_value = spec.minimum
@@ -127,15 +116,11 @@ class TuningNumberEntity(AdaptiveVentilationEntity, NumberEntity):
 
 
 def _coerce(spec: TuningNumber, value: float) -> Any:
-    return int(round(value)) if spec.step >= 1 and float(spec.step).is_integer() else value
+    return round(value) if spec.step >= 1 and float(spec.step).is_integer() else value
 
 
-async def _update_option(
-    coordinator: AdaptiveVentilationCoordinator, key: str, value: Any
-) -> None:
+async def _update_option(coordinator: AdaptiveVentilationCoordinator, key: str, value: Any) -> None:
     """Write one option back to the config entry (this triggers a reload)."""
     options = dict(coordinator.config_entry.options)
     options[key] = value
-    coordinator.hass.config_entries.async_update_entry(
-        coordinator.config_entry, options=options
-    )
+    coordinator.hass.config_entries.async_update_entry(coordinator.config_entry, options=options)

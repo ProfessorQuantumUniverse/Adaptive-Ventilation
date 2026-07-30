@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -36,6 +36,7 @@ async def async_setup_entry(
     entry: AdaptiveVentilationConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+    """Set up the entities for one config entry."""
     coordinator = entry.runtime_data
 
     async_add_entities(
@@ -85,7 +86,7 @@ class StatusSensor(AdaptiveVentilationEntity, SensorEntity):
     """The state machine of the whole integration."""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = [state.value for state in GlobalState]
+    _attr_options: ClassVar[list[str]] = [state.value for state in GlobalState]
     _attr_icon = "mdi:weather-windy"
 
     def __init__(self, coordinator: AdaptiveVentilationCoordinator) -> None:
@@ -284,6 +285,8 @@ class _RoomValueSensor(RoomEntity, SensorEntity):
 
 
 class RoomAbsoluteHumiditySensor(_RoomValueSensor):
+    """Absolute humidity in g/m3 - the number ventilation decisions run on."""
+
     _attribute = "absolute_humidity"
     _attr_native_unit_of_measurement = GRAMS_PER_CUBIC_METER
     _attr_icon = "mdi:water-opacity"
@@ -306,6 +309,8 @@ class RoomAbsoluteHumiditySensor(_RoomValueSensor):
 
 
 class RoomDewPointSensor(_RoomValueSensor):
+    """Dew point of the room air."""
+
     _attribute = "dew_point"
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
@@ -315,6 +320,8 @@ class RoomDewPointSensor(_RoomValueSensor):
 
 
 class RoomEnthalpySensor(_RoomValueSensor):
+    """Specific enthalpy - the honest comparison on a muggy evening."""
+
     _attribute = "enthalpy"
     _attr_native_unit_of_measurement = KILOJOULE_PER_KILOGRAM
     _attr_icon = "mdi:chart-bell-curve"
@@ -324,6 +331,8 @@ class RoomEnthalpySensor(_RoomValueSensor):
 
 
 class RoomSurfaceTemperatureSensor(_RoomValueSensor):
+    """Temperature of the coldest wall surface."""
+
     _attribute = "wall_surface_temperature"
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
@@ -346,7 +355,7 @@ class RoomMoldRiskSensor(RoomEntity, SensorEntity):
     """Mould risk from the surface humidity on the coldest wall."""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = [risk.value for risk in MoldRisk]
+    _attr_options: ClassVar[list[str]] = [risk.value for risk in MoldRisk]
     _attr_icon = "mdi:blur"
 
     def __init__(self, coordinator: AdaptiveVentilationCoordinator, room: RoomConfig) -> None:
@@ -423,19 +432,17 @@ class RoomRecommendationSensor(RoomEntity, SensorEntity):
     """The strongest recommendation currently affecting this room."""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = [action.value for action in Action]
+    _attr_options: ClassVar[list[str]] = [action.value for action in Action]
     _attr_icon = "mdi:lightbulb-on-outline"
 
     def __init__(self, coordinator: AdaptiveVentilationCoordinator, room: RoomConfig) -> None:
         super().__init__(coordinator, room, "recommendation")
 
-    def _best(self):  # noqa: ANN202 - internal helper
+    def _best(self):
         if self.result is None:
             return None
         candidates = [
-            rec
-            for rec in self.result.for_room(self.room.id)
-            if rec.action is not Action.NO_ACTION
+            rec for rec in self.result.for_room(self.room.id) if rec.action is not Action.NO_ACTION
         ]
         return max(candidates, key=lambda r: r.sort_key) if candidates else None
 
@@ -486,12 +493,10 @@ class WindowRecommendationSensor(WindowEntity, SensorEntity):
     """What to do with this window. State is the enum, details in attributes."""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = [action.value for action in Action]
+    _attr_options: ClassVar[list[str]] = [action.value for action in Action]
     _attr_icon = "mdi:window-open-variant"
 
-    def __init__(
-        self, coordinator: AdaptiveVentilationCoordinator, window: WindowConfig
-    ) -> None:
+    def __init__(self, coordinator: AdaptiveVentilationCoordinator, window: WindowConfig) -> None:
         super().__init__(coordinator, window, "recommendation")
 
     @property
@@ -533,9 +538,7 @@ class WindowSolarLoadSensor(WindowEntity, SensorEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:solar-power-variant"
 
-    def __init__(
-        self, coordinator: AdaptiveVentilationCoordinator, window: WindowConfig
-    ) -> None:
+    def __init__(self, coordinator: AdaptiveVentilationCoordinator, window: WindowConfig) -> None:
         super().__init__(coordinator, window, "solar_load")
 
     @property

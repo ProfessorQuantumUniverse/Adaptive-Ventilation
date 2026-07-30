@@ -1,0 +1,164 @@
+# Adaptive Ventilation on a small display, via ESPHome.
+#
+# Push, not poll: the native API means the ESP is told when something changes
+# instead of hammering REST every few seconds and keeping the WiFi radio busy.
+#
+# Tested layout: 128x64 SSD1306 OLED on I2C. A 2.9" e-paper works with the same
+# lambda - swap the display block and raise update_interval to 60s.
+#
+#   Line 1  status + traffic light dot
+#   Line 2  the recommendation
+#   Line 3  ΔT, absolute humidity, countdown
+
+esphome:
+  name: ventilation-display
+  friendly_name: Ventilation display
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+api:
+  encryption:
+    key: !secret api_encryption_key
+ota:
+  - platform: esphome
+    password: !secret ota_password
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_big
+    size: 14
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 11
+
+# --------------------------------------------------------------------------
+# The three display lines plus the status enum and its countdown attribute.
+# --------------------------------------------------------------------------
+
+text_sensor:
+  - platform: homeassistant
+    id: av_line1
+    entity_id: text.adaptive_ventilation_display_line1
+  - platform: homeassistant
+    id: av_line2
+    entity_id: text.adaptive_ventilation_display_line2
+  - platform: homeassistant
+    id: av_line3
+    entity_id: text.adaptive_ventilation_display_line3
+  - platform: homeassistant
+    id: av_status
+    entity_id: sensor.adaptive_ventilation_status
+  - platform: homeassistant
+    id: av_action
+    entity_id: sensor.adaptive_ventilation_status
+    attribute: action
+  - platform: homeassistant
+    id: av_severity
+    entity_id: sensor.adaptive_ventilation_status
+    attribute: severity
+  - platform: homeassistant
+    id: av_recommendation_id
+    entity_id: sensor.adaptive_ventilation_status
+    attribute: recommendation_id
+
+sensor:
+  - platform: homeassistant
+    id: av_countdown
+    entity_id: sensor.adaptive_ventilation_status
+    attribute: countdown
+
+binary_sensor:
+  - platform: homeassistant
+    id: av_action_required
+    entity_id: binary_sensor.adaptive_ventilation_action_required
+  - platform: homeassistant
+    id: av_storm
+    entity_id: binary_sensor.adaptive_ventilation_storm_risk
+
+# --------------------------------------------------------------------------
+# Display
+# --------------------------------------------------------------------------
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    address: 0x3C
+    update_interval: 5s
+    lambda: |-
+      // Traffic light: filled circle = act now, ring = advisory, nothing = idle.
+      const std::string severity = id(av_severity).state;
+      if (severity == "SAFETY") {
+        it.filled_circle(6, 8, 5);
+      } else if (id(av_action_required).state) {
+        it.circle(6, 8, 5);
+      }
+
+      it.printf(16, 0, id(font_big), "%s", id(av_line1).state.c_str());
+
+      // Line 2 wraps once - the recommendation is the part worth reading.
+      const std::string body = id(av_line2).state;
+      if (body.length() <= 24) {
+        it.printf(0, 20, id(font_small), "%s", body.c_str());
+      } else {
+        size_t cut = body.rfind(' ', 24);
+        if (cut == std::string::npos) cut = 24;
+        it.printf(0, 20, id(font_small), "%s", body.substr(0, cut).c_str());
+        it.printf(0, 32, id(font_small), "%s", body.substr(cut + 1, 24).c_str());
+      }
+
+      it.printf(0, 48, id(font_small), "%s", id(av_line3).state.c_str());
+
+      if (!isnan(id(av_countdown).state) && id(av_countdown).state < 60) {
+        it.printf(127, 48, id(font_small), TextAlign::TOP_RIGHT,
+                  "%.0f'", id(av_countdown).state);
+      }
+
+# --------------------------------------------------------------------------
+# Optional: an RGB status light and a physical acknowledge button.
+# --------------------------------------------------------------------------
+
+light:
+  - platform: status_led
+    name: Ventilation status
+    id: status_light
+    pin: GPIO2
+
+output:
+  - platform: ledc
+    pin: GPIO25
+    id: buzzer_output
+
+# A single short beep when a SAFETY recommendation appears - and only then.
+interval:
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(av_severity).state == "SAFETY";'
+          then:
+            - output.turn_on: buzzer_output
+            - delay: 120ms
+            - output.turn_off: buzzer_output
+
+# GPIO0 is the on-board button on most dev boards: press it to acknowledge the
+# current recommendation, which starts its cooldown and feeds the learning.
+# The id comes from the status sensor so no automation is needed in HA.
+button:
+  - platform: template
+    name: Acknowledge ventilation advice
+    on_press:
+      - homeassistant.action:
+          action: adaptive_ventilation.acknowledge
+          data_template:
+            recommendation_id: !lambda 'return id(av_recommendation_id).state;'

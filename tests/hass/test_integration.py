@@ -17,11 +17,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 if HAS_PLUGIN:  # pragma: no cover - import guard for Windows
-    from homeassistant.config_entries import SOURCE_USER, ConfigEntryState
-    from homeassistant.core import HomeAssistant
-    from homeassistant.data_entry_flow import FlowResultType
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
-
     from custom_components.adaptive_ventilation.const import (
         CONF_AZIMUTH,
         CONF_BUILDING_TYPE,
@@ -41,12 +36,16 @@ if HAS_PLUGIN:  # pragma: no cover - import guard for Windows
         SUBENTRY_ROOM,
         SUBENTRY_WINDOW,
     )
+    from homeassistant.config_entries import SOURCE_USER, ConfigEntryState
+    from homeassistant.core import HomeAssistant
+    from homeassistant.data_entry_flow import FlowResultType
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 ROOM_ID = "room-living"
 WINDOW_ID = "window-south"
 
 
-def _entry() -> "MockConfigEntry":
+def _entry() -> MockConfigEntry:
     """A configured flat: one room with sensors and one south facing window."""
     return MockConfigEntry(
         domain=DOMAIN,
@@ -86,7 +85,7 @@ def _entry() -> "MockConfigEntry":
     )
 
 
-def _seed_states(hass: "HomeAssistant") -> None:
+def _seed_states(hass: HomeAssistant) -> None:
     hass.states.async_set("sensor.outdoor_temperature", "17.0")
     hass.states.async_set("sensor.outdoor_humidity", "65")
     hass.states.async_set("sensor.living_temperature", "26.5")
@@ -94,7 +93,7 @@ def _seed_states(hass: "HomeAssistant") -> None:
     hass.states.async_set("binary_sensor.living_window", "off")
 
 
-async def _setup(hass: "HomeAssistant") -> "MockConfigEntry":
+async def _setup(hass: HomeAssistant) -> MockConfigEntry:
     _seed_states(hass)
     entry = _entry()
     entry.add_to_hass(hass)
@@ -108,10 +107,8 @@ async def _setup(hass: "HomeAssistant") -> "MockConfigEntry":
 # --------------------------------------------------------------------------
 
 
-async def test_user_flow_creates_an_entry(hass: "HomeAssistant") -> None:
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_USER}
-    )
+async def test_user_flow_creates_an_entry(hass: HomeAssistant) -> None:
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
 
@@ -124,7 +121,7 @@ async def test_user_flow_creates_an_entry(hass: "HomeAssistant") -> None:
     assert result["options"][CONF_BUILDING_TYPE] == "old_renovated"
 
 
-async def test_room_subentry_flow(hass: "HomeAssistant") -> None:
+async def test_room_subentry_flow(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
 
     result = await hass.config_entries.subentries.async_init(
@@ -146,7 +143,7 @@ async def test_room_subentry_flow(hass: "HomeAssistant") -> None:
     assert result["data"]["is_bedroom"] is True
 
 
-async def test_window_subentry_needs_a_room(hass: "HomeAssistant") -> None:
+async def test_window_subentry_needs_a_room(hass: HomeAssistant) -> None:
     entry = MockConfigEntry(domain=DOMAIN, title="Empty", data={}, options={})
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -159,7 +156,7 @@ async def test_window_subentry_needs_a_room(hass: "HomeAssistant") -> None:
     assert result["reason"] == "no_rooms"
 
 
-async def test_window_subentry_uses_the_compass_preset(hass: "HomeAssistant") -> None:
+async def test_window_subentry_uses_the_compass_preset(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
 
     result = await hass.config_entries.subentries.async_init(
@@ -179,7 +176,7 @@ async def test_window_subentry_uses_the_compass_preset(hass: "HomeAssistant") ->
     assert result["data"][CONF_AZIMUTH] == 90.0
 
 
-async def test_options_flow_menu_and_thresholds(hass: "HomeAssistant") -> None:
+async def test_options_flow_menu_and_thresholds(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
@@ -202,7 +199,7 @@ async def test_options_flow_menu_and_thresholds(hass: "HomeAssistant") -> None:
 # --------------------------------------------------------------------------
 
 
-async def test_setup_creates_the_expected_entities(hass: "HomeAssistant") -> None:
+async def test_setup_creates_the_expected_entities(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
     assert entry.state is ConfigEntryState.LOADED
 
@@ -229,7 +226,7 @@ async def test_setup_creates_the_expected_entities(hass: "HomeAssistant") -> Non
 
 
 async def test_night_flush_is_recommended_when_it_is_cooler_outside(
-    hass: "HomeAssistant",
+    hass: HomeAssistant,
 ) -> None:
     await _setup(hass)
     recommendation = hass.states.get("sensor.living_south_recommendation")
@@ -239,7 +236,7 @@ async def test_night_flush_is_recommended_when_it_is_cooler_outside(
     assert recommendation.attributes["reason"]
 
 
-async def test_unload_removes_the_entities(hass: "HomeAssistant") -> None:
+async def test_unload_removes_the_entities(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
@@ -251,22 +248,20 @@ async def test_unload_removes_the_entities(hass: "HomeAssistant") -> None:
 # --------------------------------------------------------------------------
 
 
-async def test_services_are_registered(hass: "HomeAssistant") -> None:
+async def test_services_are_registered(hass: HomeAssistant) -> None:
     await _setup(hass)
     for service in (SERVICE_START_PURGE, SERVICE_SNOOZE, SERVICE_SET_MODE):
         assert hass.services.has_service(DOMAIN, service)
 
 
-async def test_set_mode_service_changes_the_select(hass: "HomeAssistant") -> None:
+async def test_set_mode_service_changes_the_select(hass: HomeAssistant) -> None:
     await _setup(hass)
-    await hass.services.async_call(
-        DOMAIN, SERVICE_SET_MODE, {"mode": "winter"}, blocking=True
-    )
+    await hass.services.async_call(DOMAIN, SERVICE_SET_MODE, {"mode": "winter"}, blocking=True)
     await hass.async_block_till_done()
     assert hass.states.get("select.flat_mode").state == "winter"
 
 
-async def test_start_purge_service_starts_a_timer(hass: "HomeAssistant") -> None:
+async def test_start_purge_service_starts_a_timer(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
     response = await hass.services.async_call(
         DOMAIN,
@@ -280,12 +275,11 @@ async def test_start_purge_service_starts_a_timer(hass: "HomeAssistant") -> None
     assert entry.runtime_data.purge_active
 
 
-async def test_diagnostics_redacts_entity_ids(hass: "HomeAssistant") -> None:
-    from homeassistant.components.diagnostics import REDACTED
-
+async def test_diagnostics_redacts_entity_ids(hass: HomeAssistant) -> None:
     from custom_components.adaptive_ventilation.diagnostics import (
         async_get_config_entry_diagnostics,
     )
+    from homeassistant.components.diagnostics import REDACTED
 
     entry = await _setup(hass)
     payload = await async_get_config_entry_diagnostics(hass, entry)
@@ -296,7 +290,7 @@ async def test_diagnostics_redacts_entity_ids(hass: "HomeAssistant") -> None:
     assert payload["result"]["global_state"]
 
 
-async def test_panel_websocket_returns_data(hass: "HomeAssistant", hass_ws_client) -> None:  # noqa: ANN001
+async def test_panel_websocket_returns_data(hass: HomeAssistant, hass_ws_client) -> None:
     await _setup(hass)
     client = await hass_ws_client(hass)
     await client.send_json_auto_id({"type": f"{DOMAIN}/panel_data"})

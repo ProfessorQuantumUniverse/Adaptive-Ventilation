@@ -12,9 +12,9 @@ disabled and tested one at a time.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+import logging
 from typing import Any
 
 from ..context import EvaluationContext

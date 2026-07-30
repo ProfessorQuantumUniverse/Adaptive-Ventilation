@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import timedelta
-from typing import Iterable
 
 from ..context import EvaluationContext
 from ..state import Action, Priority, Recommendation, Season, clamp

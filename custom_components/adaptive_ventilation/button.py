@@ -16,6 +16,8 @@ from .models import RoomConfig
 
 @dataclass(frozen=True)
 class ButtonSpec:
+    """One global button and the coordinator call behind it."""
+
     key: str
     icon: str
     action: Callable[[AdaptiveVentilationCoordinator], Awaitable[object]]
@@ -33,20 +35,17 @@ async def async_setup_entry(
     entry: AdaptiveVentilationConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+    """Set up the entities for one config entry."""
     coordinator = entry.runtime_data
     async_add_entities(ActionButton(coordinator, spec) for spec in BUTTONS)
     for room in coordinator.config.rooms:
-        async_add_entities(
-            [RoomPurgeButton(coordinator, room)], config_subentry_id=room.id
-        )
+        async_add_entities([RoomPurgeButton(coordinator, room)], config_subentry_id=room.id)
 
 
 class ActionButton(AdaptiveVentilationEntity, ButtonEntity):
     """Global one-shot actions."""
 
-    def __init__(
-        self, coordinator: AdaptiveVentilationCoordinator, spec: ButtonSpec
-    ) -> None:
+    def __init__(self, coordinator: AdaptiveVentilationCoordinator, spec: ButtonSpec) -> None:
         super().__init__(coordinator, spec.key)
         self._spec = spec
         self._attr_icon = spec.icon
@@ -64,9 +63,7 @@ class RoomPurgeButton(RoomEntity, ButtonEntity):
 
     _attr_icon = "mdi:air-filter"
 
-    def __init__(
-        self, coordinator: AdaptiveVentilationCoordinator, room: RoomConfig
-    ) -> None:
+    def __init__(self, coordinator: AdaptiveVentilationCoordinator, room: RoomConfig) -> None:
         super().__init__(coordinator, room, "purge_room")
 
     @property

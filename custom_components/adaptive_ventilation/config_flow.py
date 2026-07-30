@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import voluptuous as vol
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
@@ -36,8 +35,10 @@ from homeassistant.helpers.selector import (
     TextSelector,
     TimeSelector,
 )
+import voluptuous as vol
 
 from .const import (
+    COMPASS_PRESETS,
     CONF_ACTIONABLE_NOTIFICATIONS,
     CONF_AZIMUTH,
     CONF_BUILDING_TYPE,
@@ -118,7 +119,6 @@ from .const import (
     CONF_WINDOW_NAME,
     CONF_WINTER_MAX,
     CONF_WINTER_MIN,
-    COMPASS_PRESETS,
     DEFAULT_CEILING_HEIGHT,
     DEFAULT_G_VALUE,
     DEFAULT_PRIORITY,
@@ -168,9 +168,7 @@ def _number(
 
 def _slider(minimum: float, maximum: float, step: float = 1.0) -> NumberSelector:
     return NumberSelector(
-        NumberSelectorConfig(
-            min=minimum, max=maximum, step=step, mode=NumberSelectorMode.SLIDER
-        )
+        NumberSelectorConfig(min=minimum, max=maximum, step=step, mode=NumberSelectorMode.SLIDER)
     )
 
 
@@ -185,13 +183,9 @@ def _select(options: list[str], key: str, *, multiple: bool = False) -> SelectSe
     )
 
 
-def _options_select(
-    options: list[SelectOptionDict], *, multiple: bool = False
-) -> SelectSelector:
+def _options_select(options: list[SelectOptionDict], *, multiple: bool = False) -> SelectSelector:
     return SelectSelector(
-        SelectSelectorConfig(
-            options=options, mode=SelectSelectorMode.DROPDOWN, multiple=multiple
-        )
+        SelectSelectorConfig(options=options, mode=SelectSelectorMode.DROPDOWN, multiple=multiple)
     )
 
 
@@ -209,9 +203,7 @@ class AdaptiveVentilationConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
     MINOR_VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             options = {
                 key: value
@@ -239,7 +231,9 @@ class AdaptiveVentilationConfigFlow(ConfigFlow, domain=DOMAIN):
                     ): _select(BUILDING_TYPES, "building_type"),
                 }
             ),
-            description_placeholders={"docs": "https://github.com/ProfessorQuantumUniverse/Adaptive-Ventilation"},
+            description_placeholders={
+                "docs": "https://github.com/ProfessorQuantumUniverse/Adaptive-Ventilation"
+            },
         )
 
     @classmethod
@@ -263,9 +257,7 @@ class AdaptiveVentilationConfigFlow(ConfigFlow, domain=DOMAIN):
 class RoomSubentryFlow(ConfigSubentryFlow):
     """Add or edit one room."""
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self._async_form(user_input, reconfigure=False)
 
     async def async_step_reconfigure(
@@ -341,27 +333,19 @@ class RoomSubentryFlow(ConfigSubentryFlow):
                             ): _sensor("pm25"),
                             vol.Optional(
                                 CONF_OCCUPANCY_SENSOR,
-                                description={
-                                    "suggested_value": current.get(CONF_OCCUPANCY_SENSOR)
-                                },
+                                description={"suggested_value": current.get(CONF_OCCUPANCY_SENSOR)},
                             ): _binary(["occupancy", "presence", "motion"]),
                             vol.Optional(
                                 CONF_CLIMATE_ENTITY,
-                                description={
-                                    "suggested_value": current.get(CONF_CLIMATE_ENTITY)
-                                },
+                                description={"suggested_value": current.get(CONF_CLIMATE_ENTITY)},
                             ): EntitySelector(EntitySelectorConfig(domain="climate")),
                             vol.Optional(
                                 CONF_FAN_ENTITY,
                                 description={"suggested_value": current.get(CONF_FAN_ENTITY)},
-                            ): EntitySelector(
-                                EntitySelectorConfig(domain=["fan", "switch"])
-                            ),
+                            ): EntitySelector(EntitySelectorConfig(domain=["fan", "switch"])),
                             vol.Optional(
                                 CONF_POWER_SENSOR,
-                                description={
-                                    "suggested_value": current.get(CONF_POWER_SENSOR)
-                                },
+                                description={"suggested_value": current.get(CONF_POWER_SENSOR)},
                             ): _sensor("power"),
                             vol.Optional(
                                 CONF_VOLUME,
@@ -373,9 +357,7 @@ class RoomSubentryFlow(ConfigSubentryFlow):
                             ): _number(2, 200, 0.5, "m²"),
                             vol.Optional(
                                 CONF_CEILING_HEIGHT,
-                                default=current.get(
-                                    CONF_CEILING_HEIGHT, DEFAULT_CEILING_HEIGHT
-                                ),
+                                default=current.get(CONF_CEILING_HEIGHT, DEFAULT_CEILING_HEIGHT),
                             ): _number(1.8, 6.0, 0.05, "m"),
                             vol.Optional(
                                 CONF_TARGET_MIN,
@@ -416,9 +398,7 @@ class RoomSubentryFlow(ConfigSubentryFlow):
                             ): _select(ESTIMATION_OPTIONS, "estimation"),
                             vol.Optional(
                                 CONF_REFERENCE_ROOM,
-                                description={
-                                    "suggested_value": current.get(CONF_REFERENCE_ROOM)
-                                },
+                                description={"suggested_value": current.get(CONF_REFERENCE_ROOM)},
                             ): _options_select(other_rooms),
                             vol.Optional(
                                 CONF_REFERENCE_OFFSET,
@@ -440,9 +420,7 @@ class RoomSubentryFlow(ConfigSubentryFlow):
 class WindowSubentryFlow(ConfigSubentryFlow):
     """Add or edit one window, including its cover."""
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self._async_form(user_input, reconfigure=False)
 
     async def async_step_reconfigure(
@@ -488,12 +466,8 @@ class WindowSubentryFlow(ConfigSubentryFlow):
             data_schema=self._schema(rooms, current),
         )
 
-    def _schema(
-        self, rooms: list[SelectOptionDict], current: dict[str, Any]
-    ) -> vol.Schema:
-        suggested_contact = current.get(CONF_CONTACT_SENSOR) or _suggest_window_sensor(
-            self.hass
-        )
+    def _schema(self, rooms: list[SelectOptionDict], current: dict[str, Any]) -> vol.Schema:
+        suggested_contact = current.get(CONF_CONTACT_SENSOR) or _suggest_window_sensor(self.hass)
         return vol.Schema(
             {
                 vol.Required(
@@ -509,7 +483,7 @@ class WindowSubentryFlow(ConfigSubentryFlow):
                 vol.Required(
                     "orientation",
                     default=_azimuth_to_preset(current.get(CONF_AZIMUTH, 180.0)),
-                ): _select(list(COMPASS_PRESETS) + ["custom"], "orientation"),
+                ): _select([*COMPASS_PRESETS, "custom"], "orientation"),
                 vol.Required("advanced"): section(
                     vol.Schema(
                         {
@@ -534,9 +508,7 @@ class WindowSubentryFlow(ConfigSubentryFlow):
                             ): _number(0.1, 0.9, 0.05),
                             vol.Optional(
                                 CONF_COVER_ENTITY,
-                                description={
-                                    "suggested_value": current.get(CONF_COVER_ENTITY)
-                                },
+                                description={"suggested_value": current.get(CONF_COVER_ENTITY)},
                             ): EntitySelector(EntitySelectorConfig(domain="cover")),
                             vol.Optional(
                                 CONF_COVER_EXTERNAL,
@@ -572,9 +544,7 @@ class WindowSubentryFlow(ConfigSubentryFlow):
 class AdaptiveVentilationOptionsFlow(OptionsFlow):
     """Global settings, grouped so nobody has to scroll through 40 fields."""
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
             menu_options=["sources", "building", "notifications", "weights", "thresholds"],
@@ -596,9 +566,7 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                     ): EntitySelector(EntitySelectorConfig(domain="weather")),
                     vol.Optional(
                         CONF_OUTDOOR_TEMPERATURE,
-                        description={
-                            "suggested_value": options.get(CONF_OUTDOOR_TEMPERATURE)
-                        },
+                        description={"suggested_value": options.get(CONF_OUTDOOR_TEMPERATURE)},
                     ): _sensor("temperature"),
                     vol.Optional(
                         CONF_OUTDOOR_HUMIDITY,
@@ -614,9 +582,7 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                     ): _sensor("pm10"),
                     vol.Optional(
                         CONF_WEATHER_ALERT_ENTITY,
-                        description={
-                            "suggested_value": options.get(CONF_WEATHER_ALERT_ENTITY)
-                        },
+                        description={"suggested_value": options.get(CONF_WEATHER_ALERT_ENTITY)},
                     ): _binary(),
                     vol.Optional(
                         CONF_ILLUMINANCE,
@@ -650,15 +616,11 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                 {
                     vol.Required(
                         CONF_BUILDING_TYPE,
-                        default=options.get(
-                            CONF_BUILDING_TYPE, BuildingType.OLD_RENOVATED.value
-                        ),
+                        default=options.get(CONF_BUILDING_TYPE, BuildingType.OLD_RENOVATED.value),
                     ): _select(BUILDING_TYPES, "building_type"),
                     vol.Optional(
                         CONF_CONSTRUCTION_YEAR,
-                        description={
-                            "suggested_value": options.get(CONF_CONSTRUCTION_YEAR)
-                        },
+                        description={"suggested_value": options.get(CONF_CONSTRUCTION_YEAR)},
                     ): _number(1800, 2100, 1),
                     vol.Optional(CONF_FLOOR, default=options.get(CONF_FLOOR, 1)): _number(
                         -2, 30, 1
@@ -692,9 +654,7 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                 {
                     vol.Optional(
                         CONF_NOTIFY_TARGETS,
-                        description={
-                            "suggested_value": options.get(CONF_NOTIFY_TARGETS, [])
-                        },
+                        description={"suggested_value": options.get(CONF_NOTIFY_TARGETS, [])},
                     ): _options_select(targets, multiple=True),
                     vol.Optional(
                         CONF_ACTIONABLE_NOTIFICATIONS,
@@ -724,9 +684,7 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                     ): _slider(0, 100, 5),
                     vol.Optional(
                         CONF_MIN_CONFIDENCE,
-                        default=options.get(
-                            CONF_MIN_CONFIDENCE, defaults.min_confidence_for_push
-                        ),
+                        default=options.get(CONF_MIN_CONFIDENCE, defaults.min_confidence_for_push),
                     ): _number(0.0, 1.0, 0.05),
                     vol.Optional(
                         CONF_COVER_AUTOMATION,
@@ -749,9 +707,7 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                 {
                     vol.Optional(
                         CONF_WEIGHT_TEMPERATURE,
-                        default=options.get(
-                            CONF_WEIGHT_TEMPERATURE, defaults.weight_temperature
-                        ),
+                        default=options.get(CONF_WEIGHT_TEMPERATURE, defaults.weight_temperature),
                     ): _slider(0, 100, 5),
                     vol.Optional(
                         CONF_WEIGHT_HUMIDITY,
@@ -763,9 +719,7 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                     ): _slider(0, 100, 5),
                     vol.Optional(
                         CONF_WEIGHT_PARTICULATE,
-                        default=options.get(
-                            CONF_WEIGHT_PARTICULATE, defaults.weight_particulate
-                        ),
+                        default=options.get(CONF_WEIGHT_PARTICULATE, defaults.weight_particulate),
                     ): _slider(0, 100, 5),
                 }
             ),
@@ -816,9 +770,7 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                     ): _number(5, 100, 1, "µg/m³"),
                     vol.Optional(
                         CONF_PM25_OUTDOOR,
-                        default=options.get(
-                            CONF_PM25_OUTDOOR, defaults.pm25_outdoor_threshold
-                        ),
+                        default=options.get(CONF_PM25_OUTDOOR, defaults.pm25_outdoor_threshold),
                     ): _number(5, 150, 1, "µg/m³"),
                     vol.Optional(
                         CONF_STORM_WIND,
@@ -826,15 +778,11 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                     ): _number(30, 120, 5, "km/h"),
                     vol.Optional(
                         CONF_TROPICAL_NIGHT,
-                        default=options.get(
-                            CONF_TROPICAL_NIGHT, defaults.tropical_night_threshold
-                        ),
+                        default=options.get(CONF_TROPICAL_NIGHT, defaults.tropical_night_threshold),
                     ): _number(15, 26, 0.5, "°C"),
                     vol.Optional(
                         CONF_DELTA_T_HYSTERESIS,
-                        default=options.get(
-                            CONF_DELTA_T_HYSTERESIS, defaults.delta_t_hysteresis
-                        ),
+                        default=options.get(CONF_DELTA_T_HYSTERESIS, defaults.delta_t_hysteresis),
                     ): _number(0.1, 3.0, 0.1, "K"),
                     vol.Optional(
                         CONF_MIN_STATE_DURATION,
@@ -848,9 +796,7 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
                     ): _number(10, 240, 10, "min"),
                     vol.Optional(
                         CONF_CLOSE_LEAD_TIME,
-                        default=options.get(
-                            CONF_CLOSE_LEAD_TIME, defaults.close_lead_time_minutes
-                        ),
+                        default=options.get(CONF_CLOSE_LEAD_TIME, defaults.close_lead_time_minutes),
                     ): _number(5, 120, 5, "min"),
                 }
             ),

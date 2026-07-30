@@ -118,7 +118,7 @@ def enthalpy(
 def wet_bulb_temperature(temperature: float, relative_humidity: float) -> float:
     """Wet bulb temperature in °C (Stull 2011 approximation, ±0.3 K)."""
     rh = max(0.5, min(100.0, relative_humidity))
-    return (
+    return float(
         temperature * math.atan(0.151977 * math.sqrt(rh + 8.313659))
         + math.atan(temperature + rh)
         - math.atan(rh - 1.676331)

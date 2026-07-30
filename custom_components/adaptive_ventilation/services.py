@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import voluptuous as vol
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import (
     HomeAssistant,
@@ -21,6 +20,7 @@ from homeassistant.core import (
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
+import voluptuous as vol
 
 from .const import (
     ATTR_DURATION,
@@ -76,12 +76,8 @@ SNOOZE_SCHEMA = vol.Schema(
         vol.Optional(ATTR_SCOPE, default="1h"): vol.In(SNOOZE_SCOPES),
     }
 )
-ACKNOWLEDGE_SCHEMA = vol.Schema(
-    {**_BASE, vol.Required(ATTR_RECOMMENDATION_ID): cv.string}
-)
-SET_MODE_SCHEMA = vol.Schema(
-    {**_BASE, vol.Required("mode"): vol.In([m.value for m in Mode])}
-)
+ACKNOWLEDGE_SCHEMA = vol.Schema({**_BASE, vol.Required(ATTR_RECOMMENDATION_ID): cv.string})
+SET_MODE_SCHEMA = vol.Schema({**_BASE, vol.Required("mode"): vol.In([m.value for m in Mode])})
 RECALIBRATE_SCHEMA = vol.Schema(_BASE)
 OVERRIDE_SCHEMA = vol.Schema(
     {
@@ -151,6 +147,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
 @callback
 def async_unload_services(hass: HomeAssistant) -> None:
+    """Remove every service when the last config entry unloads."""
     for service in (
         SERVICE_START_PURGE,
         SERVICE_SNOOZE,
@@ -174,13 +171,9 @@ def _coordinator(hass: HomeAssistant, call: ServiceCall) -> AdaptiveVentilationC
     if entry_id:
         entries = [entry for entry in entries if entry.entry_id == entry_id]
     if not entries:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN, translation_key="no_entry_found"
-        )
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="no_entry_found")
     if len(entries) > 1:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN, translation_key="entry_id_required"
-        )
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="entry_id_required")
     return entries[0].runtime_data
 
 

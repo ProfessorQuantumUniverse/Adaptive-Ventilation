@@ -6,8 +6,8 @@ whether it feels clammy; whether ventilation removes water is decided by g/m³.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import timedelta
-from typing import Iterable
 
 from ..context import EvaluationContext
 from ..state import (
@@ -15,11 +15,19 @@ from ..state import (
     MoldRisk,
     Priority,
     Recommendation,
+    RoomState,
     Season,
     clamp,
 )
 from . import make, rule
 from .helpers import purge_action, purge_windows
+
+
+def _expected_drying(room: RoomState, outdoor_ah: float | None) -> float:
+    """Roughly how much water a purge removes, in g/m3."""
+    indoor = room.absolute_humidity or 0.0
+    return round((indoor - (outdoor_ah or 0.0)) * 0.6, 1)
+
 
 #: A room counts as "spiking" when its absolute humidity exceeds the flat
 #: average by this much (g/m³) — showering adds 2-4 g/m³ within minutes.
@@ -83,7 +91,7 @@ def humidity_spike(ctx: EvaluationContext) -> Iterable[Recommendation]:
                 },
                 duration_minutes=minutes,
                 confidence=room.confidence,
-                expected_benefit=f"-{round((room.absolute_humidity - (outdoor_ah or 0)) * 0.6, 1)} g/m3",
+                expected_benefit=f"-{_expected_drying(room, outdoor_ah)} g/m3",
                 valid_until=ctx.now + timedelta(minutes=90),
             )
 
@@ -96,8 +104,10 @@ def mold_risk(ctx: EvaluationContext) -> Iterable[Recommendation]:
         assessment = ctx.assessment(room.id)
         if assessment.mold_risk in (MoldRisk.NONE, MoldRisk.LOW):
             continue
-        drying = outdoor_ah is not None and room.absolute_humidity is not None and (
-            outdoor_ah < room.absolute_humidity - 0.3
+        drying = (
+            outdoor_ah is not None
+            and room.absolute_humidity is not None
+            and (outdoor_ah < room.absolute_humidity - 0.3)
         )
         windows, cross = purge_windows(ctx, room)
         data = {
@@ -157,7 +167,9 @@ def laundry_drying(ctx: EvaluationContext) -> Iterable[Recommendation]:
                 ctx,
                 "laundry_drying",
                 window.id,
-                Action.OPEN_TILT if window.tilt_capable and ctx.season is not Season.WINTER else purge_action(cross),
+                Action.OPEN_TILT
+                if window.tilt_capable and ctx.season is not Season.WINTER
+                else purge_action(cross),
                 Priority.COMFORT,
                 "laundry_drying",
                 urgency=45,
@@ -230,9 +242,7 @@ def dry_air(ctx: EvaluationContext) -> Iterable[Recommendation]:
 )
 def unheated_room(ctx: EvaluationContext) -> Iterable[Recommendation]:
     """Warm humid air migrating into a cold room condenses on its walls."""
-    warm_rooms = [
-        r for r in ctx.rooms if r.temperature is not None and r.temperature >= 19.0
-    ]
+    warm_rooms = [r for r in ctx.rooms if r.temperature is not None and r.temperature >= 19.0]
     if not warm_rooms:
         return
     for room in ctx.rooms:

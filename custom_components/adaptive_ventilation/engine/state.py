@@ -7,11 +7,11 @@ replayed offline (see ``scripts/replay.py``).
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field, replace
 from datetime import datetime, time, timedelta
 from enum import IntEnum, StrEnum
 from functools import cached_property
+import math
 from typing import Any, Literal
 
 from . import psychrometrics as psy
@@ -175,7 +175,9 @@ class OutdoorState:
     is_stale: bool = False
 
     @classmethod
-    def create(cls, temperature: float, humidity: float | None = None, **kwargs: Any) -> OutdoorState:
+    def create(
+        cls, temperature: float, humidity: float | None = None, **kwargs: Any
+    ) -> OutdoorState:
         """Build an :class:`OutdoorState` and derive the psychrometric values."""
         derived: dict[str, Any] = {}
         if humidity is not None:
@@ -261,9 +263,7 @@ class WeatherAlert:
     def is_active(self, now: datetime) -> bool:
         if self.start is not None and now < self.start:
             return False
-        if self.end is not None and now > self.end:
-            return False
-        return True
+        return not (self.end is not None and now > self.end)
 
 
 @dataclass(frozen=True)
@@ -349,6 +349,19 @@ class Preferences:
     notifications_enabled: bool = True
     actionable_notifications: bool = True
     min_confidence_for_push: float = 0.7
+
+    def __post_init__(self) -> None:
+        """Accept ``"22:00"`` as well as ``time(22, 0)``.
+
+        Preferences arrive from three directions - the options flow, a YAML
+        scenario and the replay map file - and only the first of those hands
+        over real ``time`` objects. Coercing here beats a ``TypeError`` deep
+        inside a quiet-hours comparison.
+        """
+        for field_name in ("quiet_hours_start", "quiet_hours_end"):
+            value = getattr(self, field_name)
+            if isinstance(value, str):
+                object.__setattr__(self, field_name, _parse_clock(value))
 
     def weight(self, axis: Literal["temperature", "humidity", "co2", "particulate"]) -> float:
         """Return an axis weight normalised to 0.0 .. 2.0 (1.0 = neutral)."""
@@ -670,9 +683,7 @@ class Recommendation:
     def is_valid(self, now: datetime) -> bool:
         if self.valid_from is not None and now < self.valid_from:
             return False
-        if self.valid_until is not None and now > self.valid_until:
-            return False
-        return True
+        return not (self.valid_until is not None and now > self.valid_until)
 
 
 @dataclass(frozen=True)
@@ -701,6 +712,11 @@ class VentilationSchedule:
     best_start: datetime | None = None
     best_end: datetime | None = None
     best_delta_k: float = 0.0
+    #: What ``best_delta_k`` and ``ScheduleSlot.delta_k`` actually measure.
+    #: In summer it is Kelvin of cooling, in winter grams of water per m³ that
+    #: a purge would remove - labelling both as Kelvin produced nonsense like
+    #: "best window 16:00-06:00, 29 K".
+    metric: Literal["kelvin", "grams"] = "kelvin"
     summary_key: str = "no_plan"
     summary_data: dict[str, Any] = field(default_factory=dict)
 
@@ -786,7 +802,7 @@ class EvaluationResult:
         return None
 
     def for_room(self, room_id: str) -> list[Recommendation]:
-        return [r for r in self.recommendations if r.room_id == room_id or r.target == room_id]
+        return [r for r in self.recommendations if room_id in (r.room_id, r.target)]
 
     @property
     def primary(self) -> Recommendation | None:
@@ -874,6 +890,36 @@ class EngineMemory:
             return limit
         return max(0, limit - self.pushes_today)
 
+    def may_push(self, priority: Priority, now: datetime, limit: int) -> bool:
+        """Whether the daily notification budget still covers this priority.
+
+        Not first-come-first-served: without a reserve, a shading tip at 09:00
+        spends the whole day's budget and the CO2 warning at 23:00 never
+        arrives. Comfort and optimisation therefore cannot touch the last
+        third; health can spend everything; safety ignores the budget.
+        """
+        if priority is Priority.SAFETY:
+            return True
+        left = self.pushes_left(now, limit)
+        if priority is Priority.HEALTH:
+            return left > 0
+        return left > max(1, limit // 3)
+
+    def register_push(
+        self, recommendation_id: str, target: str, now: datetime, cooldown_minutes: int
+    ) -> None:
+        """Record that a recommendation actually went out.
+
+        Everything that decides "may this be pushed again" reads from here, so
+        it has to be one method: the daily counter, the per-recommendation
+        cooldown the arbiter checks, and the timestamp the contradiction
+        detection uses. Keeping it in the persisted memory means a restart does
+        not reset the cooldown and re-notify everything.
+        """
+        self.note_push(now)
+        self.cooldowns[recommendation_id] = now + timedelta(minutes=cooldown_minutes)
+        self.target(target).last_notified = now
+
     def hours_since_purge(self, room_id: str, now: datetime) -> float | None:
         """Hours since the last completed purge, ``None`` if never seen."""
         last = self.last_purge.get(room_id)
@@ -905,6 +951,14 @@ class EngineMemory:
         }
 
 
+def _parse_clock(raw: str) -> time:
+    """Parse ``HH:MM`` or ``HH:MM:SS`` into a :class:`~datetime.time`."""
+    parts = raw.strip().split(":")
+    hour = int(parts[0])
+    minute = int(parts[1]) if len(parts) > 1 else 0
+    return time(hour % 24, minute % 60)
+
+
 def bearing_difference(a: float, b: float) -> float:
     """Smallest absolute angle between two compass bearings in degrees."""
     return abs((a - b + 180.0) % 360.0 - 180.0)
@@ -917,6 +971,7 @@ def compass_point(azimuth: float) -> str:
 
 
 def clamp(value: float, low: float, high: float) -> float:
+    """Constrain a value to a range."""
     return max(low, min(high, value))
 
 

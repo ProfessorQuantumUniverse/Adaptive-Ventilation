@@ -2,22 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from adaptive_ventilation.engine import solar
 from adaptive_ventilation.engine.state import WindowState
 
-UTC = timezone.utc
 # Frankfurt am Main.
 LAT, LON = 50.11, 8.68
 
 
 def _window(azimuth: float, **kwargs: object) -> WindowState:
-    return WindowState(
-        id="w", name="Window", room_id="r", azimuth=azimuth, area_m2=2.0, **kwargs
-    )
+    return WindowState(id="w", name="Window", room_id="r", azimuth=azimuth, area_m2=2.0, **kwargs)
 
 
 def test_solar_noon_in_summer() -> None:
@@ -72,9 +69,7 @@ def test_external_cover_beats_internal_cover() -> None:
     external = _window(180.0, cover_entity="cover.x", cover_position=0, cover_external=True)
     internal = _window(180.0, cover_entity="cover.x", cover_position=0, cover_external=False)
     assert solar.solar_load(external, 45.0, 180.0) < solar.solar_load(internal, 45.0, 180.0)
-    assert solar.cover_saving_w(external, 45.0, 180.0) > solar.cover_saving_w(
-        internal, 45.0, 180.0
-    )
+    assert solar.cover_saving_w(external, 45.0, 180.0) > solar.cover_saving_w(internal, 45.0, 180.0)
 
 
 def test_partially_closed_cover_scales_linearly() -> None:

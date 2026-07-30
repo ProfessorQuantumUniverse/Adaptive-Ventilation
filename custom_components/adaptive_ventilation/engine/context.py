@@ -8,9 +8,9 @@ recomputed thirty times.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Sequence
 
 from . import psychrometrics as psy
 from . import solar as solar_mod
@@ -20,6 +20,7 @@ from .state import (
     EngineMemory,
     LearnedRoom,
     MoldRisk,
+    OutdoorState,
     Preferences,
     RoomAssessment,
     RoomState,
@@ -53,7 +54,7 @@ class EvaluationContext:
         return self.state.now
 
     @property
-    def outdoor(self):  # noqa: ANN201 - simple passthrough
+    def outdoor(self) -> OutdoorState:
         return self.state.outdoor
 
     @property
@@ -93,9 +94,7 @@ class EvaluationContext:
                 return first
         return None
 
-    def purge_minutes(
-        self, room: RoomState, *, tilted: bool = False, cross: bool = False
-    ) -> int:
+    def purge_minutes(self, room: RoomState, *, tilted: bool = False, cross: bool = False) -> int:
         return thermal.purge_duration(
             room,
             self.outdoor.temperature,
@@ -120,7 +119,7 @@ class EvaluationContext:
         outdoor = self.outdoor.enthalpy
         if indoor is None or outdoor is None:
             return None
-        return indoor - outdoor
+        return float(indoor - outdoor)
 
     def sun_ahead(self, window: WindowState) -> datetime | None:
         return self.next_sun_hit.get(window.id)
@@ -130,7 +129,9 @@ class EvaluationContext:
             return None
         return (moment - self.now).total_seconds() / 60.0
 
-    def targets_all_windows(self, predicate=None) -> list[WindowState]:
+    def targets_all_windows(
+        self, predicate: Callable[[WindowState], bool] | None = None
+    ) -> list[WindowState]:
         if predicate is None:
             return list(self.windows)
         return [w for w in self.windows if predicate(w)]
@@ -191,9 +192,7 @@ def _assess_room(ctx: EvaluationContext, room: RoomState) -> RoomAssessment:
         surface_temp = psy.wall_surface_temperature(
             room.temperature, state.outdoor.temperature, state.building.f_rt
         )
-        surface_rh = psy.surface_relative_humidity(
-            room.temperature, room.humidity, surface_temp
-        )
+        surface_rh = psy.surface_relative_humidity(room.temperature, room.humidity, surface_temp)
         risk = MoldRisk(psy.mold_risk_level(surface_rh))
         if state.building.building_type.value == "half_timbered" and risk is MoldRisk.LOW:
             # Timber framing is moisture sensitive: escalate one step.
@@ -301,7 +300,7 @@ def _air_quality_score(
     }
     total_weight = sum(weights.values()) or 1.0
     score = sum(breakdown[k] * weights[k] for k in breakdown) / total_weight
-    return int(round(clamp(score, 0.0, 100.0))), breakdown
+    return round(clamp(score, 0.0, 100.0)), breakdown
 
 
 def _tipping_points(ctx: EvaluationContext) -> TippingPoints:
@@ -368,9 +367,7 @@ def _cooling_budget(ctx: EvaluationContext) -> CoolingBudget:
     lost = sum(r for r in rates if r > 0.0)
     balance = ctx.memory.balance(3)
 
-    tropical = thermal.is_tropical_night(
-        state.forecast, state.now, prefs.tropical_night_threshold
-    )
+    tropical = thermal.is_tropical_night(state.forecast, state.now, prefs.tropical_night_threshold)
     heatwave, peak, _peak_time = thermal.heatwave_ahead(
         state.forecast, state.now, prefs.heatwave_threshold
     )

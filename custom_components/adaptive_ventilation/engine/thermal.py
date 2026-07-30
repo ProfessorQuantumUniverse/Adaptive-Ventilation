@@ -13,10 +13,12 @@ seeded from the building type and then overwritten by measurements.
 
 from __future__ import annotations
 
-import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Final, Iterable, Sequence
+from itertools import pairwise
+import math
+from typing import Final
 
 from . import psychrometrics as psy
 from . import solar as solar_mod
@@ -79,6 +81,7 @@ REFERENCE_ROOM_VOLUME: Final = 40.0
 
 
 def room_volume(room: RoomState) -> float:
+    """Configured room volume, or a sane default."""
     return room.volume_m3 or DEFAULT_VOLUME_M3
 
 
@@ -96,9 +99,7 @@ def effective_tau(room: RoomState, building: BuildingProfile, learned: LearnedRo
     return tau
 
 
-def thermal_capacity_wh_per_k(
-    room: RoomState, building: BuildingProfile | None = None
-) -> float:
+def thermal_capacity_wh_per_k(room: RoomState, building: BuildingProfile | None = None) -> float:
     """Effective heat capacity of the room in Wh/K."""
     building_type = building.building_type if building else BuildingType.UNKNOWN
     specific = ROOM_CAPACITY_WH_PER_M3_K[building_type]
@@ -266,7 +267,7 @@ def purge_duration(
     if tilted:
         minutes *= TILT_FACTOR
 
-    return int(round(clamp(minutes, 3.0, 60.0)))
+    return round(clamp(minutes, 3.0, 60.0))
 
 
 def _as_open(window: WindowState, *, tilted: bool = False) -> WindowState:
@@ -372,9 +373,7 @@ def simulate(
             break
         cloud = _interpolate_cloud(forecast, moment)
 
-        elevation, azimuth = solar_mod.sun_position(
-            moment, building.latitude, building.longitude
-        )
+        elevation, azimuth = solar_mod.sun_position(moment, building.latitude, building.longitude)
         shaded = plan.is_shaded_at(moment)
         solar_w = 0.0
         for window in windows:
@@ -404,9 +403,7 @@ def simulate(
         net_w = envelope_w + ventilation_w + solar_w + internal
         indoor += net_w / capacity * dt_hours
 
-        points.append(
-            SimulationPoint(moment, indoor, outdoor, solar_w, ach, is_open)
-        )
+        points.append(SimulationPoint(moment, indoor, outdoor, solar_w, ach, is_open))
 
     if not points:
         return SimulationResult(plan.label, (), 0.0, None, 0.0, 0.0, 0.0)
@@ -430,15 +427,13 @@ def _interpolate_forecast(forecast: Sequence[ForecastHour], moment: datetime) ->
         return None
     if moment <= forecast[0].time:
         return forecast[0].temperature
-    for previous, following in zip(forecast, forecast[1:]):
+    for previous, following in pairwise(forecast):
         if previous.time <= moment <= following.time:
             span = (following.time - previous.time).total_seconds()
             if span <= 0:
                 return previous.temperature
             ratio = (moment - previous.time).total_seconds() / span
-            return previous.temperature + ratio * (
-                following.temperature - previous.temperature
-            )
+            return previous.temperature + ratio * (following.temperature - previous.temperature)
     return forecast[-1].temperature
 
 
@@ -475,7 +470,7 @@ def find_tipping_points(
     morning: datetime | None = None
     evening: datetime | None = None
 
-    for previous, following in zip(entries, entries[1:]):
+    for previous, following in pairwise(entries):
         before = previous.temperature - indoor_temperature
         after = following.temperature - indoor_temperature
         if before < -hysteresis <= after or (before < 0.0 <= after):
@@ -489,9 +484,7 @@ def find_tipping_points(
     return morning, evening
 
 
-def _crossing_time(
-    previous: ForecastHour, following: ForecastHour, target: float
-) -> datetime:
+def _crossing_time(previous: ForecastHour, following: ForecastHour, target: float) -> datetime:
     span_k = following.temperature - previous.temperature
     if abs(span_k) < 1e-6:
         return previous.time
@@ -611,9 +604,7 @@ def heating_rate_k_per_h(
     return (ua * delta_t + ventilation_w + solar_w + internal) / capacity
 
 
-def projected_temperature(
-    room: RoomState, rate_k_per_h: float, hours: float
-) -> float | None:
+def projected_temperature(room: RoomState, rate_k_per_h: float, hours: float) -> float | None:
     """Naive linear projection, damped so it does not run away."""
     if room.temperature is None:
         return None
@@ -621,7 +612,9 @@ def projected_temperature(
     return room.temperature + rate_k_per_h * hours * damping
 
 
-def is_tropical_night(forecast: Sequence[ForecastHour], now: datetime, threshold: float = 20.0) -> bool:
+def is_tropical_night(
+    forecast: Sequence[ForecastHour], now: datetime, threshold: float = 20.0
+) -> bool:
     """Tropical night = the overnight minimum stays above ``threshold``."""
     night = [
         f
@@ -638,9 +631,7 @@ def heatwave_ahead(
 ) -> tuple[bool, float, datetime | None]:
     """Detect a heat peak 12-72 h out: ``(found, peak_temperature, peak_time)``."""
     window = [
-        f
-        for f in forecast
-        if now + timedelta(hours=12) <= f.time <= now + timedelta(hours=72)
+        f for f in forecast if now + timedelta(hours=12) <= f.time <= now + timedelta(hours=72)
     ]
     if not window:
         return False, 0.0, None
@@ -666,7 +657,10 @@ def find_temperature_drop(
 
 
 def mixing_after_purge(
-    room: RoomState, outdoor_temperature: float, outdoor_humidity: float | None, minutes: int,
+    room: RoomState,
+    outdoor_temperature: float,
+    outdoor_humidity: float | None,
+    minutes: int,
     air_changes: float,
 ) -> tuple[float, float | None]:
     """Indoor temperature and RH expected right after a purge of ``minutes``."""
@@ -687,6 +681,4 @@ def sum_solar_load(
     windows: Iterable[WindowState], sun: SunState, cloud_coverage: float | None = None
 ) -> float:
     """Total solar power through a set of windows in W."""
-    return sum(
-        solar_mod.solar_load(w, sun.elevation, sun.azimuth, cloud_coverage) for w in windows
-    )
+    return sum(solar_mod.solar_load(w, sun.elevation, sun.azimuth, cloud_coverage) for w in windows)

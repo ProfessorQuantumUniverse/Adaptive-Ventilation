@@ -1,0 +1,8 @@
+{
+  "name": "Adaptive Ventilation",
+  "content_in_root": false,
+  "filename": "adaptive_ventilation",
+  "render_readme": true,
+  "homeassistant": "2025.7.0",
+  "zip_release": false
+}

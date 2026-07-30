@@ -7,8 +7,8 @@ statement and the data behind the timeline bar in the panel.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Sequence
 
 from . import thermal
 from .context import EvaluationContext
@@ -35,7 +35,7 @@ def build_schedule(ctx: EvaluationContext, *, hours: int = 24) -> VentilationSch
     if room is None or room.temperature is None or not state.forecast:
         return VentilationSchedule(summary_key="no_forecast")
 
-    windows = [w for w in state.windows_of(room.id)] or list(state.windows)
+    windows = state.windows_of(room.id) or list(state.windows)
     entries = _hourly(state.forecast, state.now, hours)
     if not entries:
         return VentilationSchedule(summary_key="no_forecast")
@@ -90,7 +90,8 @@ def build_schedule(ctx: EvaluationContext, *, hours: int = 24) -> VentilationSch
             )
         )
 
-    best_start, best_end, best_delta = _best_window(slots)
+    winter = ctx.season is Season.WINTER
+    best_start, best_end, best_delta = _best_window(slots, winter=winter)
     summary_key, summary_data = _summarise(ctx, room, slots, best_start, best_end, best_delta)
 
     return VentilationSchedule(
@@ -98,6 +99,7 @@ def build_schedule(ctx: EvaluationContext, *, hours: int = 24) -> VentilationSch
         best_start=best_start,
         best_end=best_end,
         best_delta_k=round(best_delta, 2),
+        metric="grams" if winter else "kelvin",
         summary_key=summary_key,
         summary_data=summary_data,
     )
@@ -196,9 +198,7 @@ def _reference_room(rooms: Sequence[RoomState]) -> RoomState | None:
     return min(candidates, key=lambda r: (r.priority, -(r.temperature or 0.0)))
 
 
-def _hourly(
-    forecast: Sequence[ForecastHour], now: datetime, hours: int
-) -> list[ForecastHour]:
+def _hourly(forecast: Sequence[ForecastHour], now: datetime, hours: int) -> list[ForecastHour]:
     horizon = now + timedelta(hours=hours)
     entries = [f for f in forecast if f.time >= now - timedelta(minutes=30) and f.time <= horizon]
     return entries[:hours]
@@ -222,9 +222,7 @@ def _simulate_baseline(
     return result if result.points else None
 
 
-def _baseline_drift(
-    baseline: thermal.SimulationResult | None, moment: datetime
-) -> float:
+def _baseline_drift(baseline: thermal.SimulationResult | None, moment: datetime) -> float:
     """Temperature change over the next hour if nothing is done."""
     if baseline is None:
         return 0.0
@@ -235,18 +233,47 @@ def _baseline_drift(
     return later - here
 
 
+#: A winter purge is minutes long, so the recommended winter window is the best
+#: couple of hours to do it in, not "any time the air outside is dry".
+WINTER_WINDOW_HOURS = 2
+
+
 def _best_window(
-    slots: Sequence[ScheduleSlot],
+    slots: Sequence[ScheduleSlot], *, winter: bool = False
 ) -> tuple[datetime | None, datetime | None, float]:
-    """Longest/strongest contiguous run of usable slots."""
+    """The single best ventilation window.
+
+    Summer: the contiguous run with the largest total cooling, because the
+    window really is open the whole time and the Kelvin add up.
+    Winter: the best short slice by *average* drying margin - summing grams
+    over fourteen hours would describe a purge nobody is going to do.
+    """
+    usable = [
+        slot
+        for slot in slots
+        if slot.quality in (SlotQuality.GOOD, SlotQuality.FAIR) and slot.delta_k > 0.0
+    ]
+    if not usable:
+        return None, None, 0.0
+
+    if winter:
+        best_slot = max(usable, key=lambda s: s.delta_k)
+        index = slots.index(best_slot)
+        run = [
+            slot
+            for slot in slots[index : index + WINTER_WINDOW_HOURS]
+            if slot.quality in (SlotQuality.GOOD, SlotQuality.FAIR)
+        ]
+        mean = sum(slot.delta_k for slot in run) / len(run)
+        return run[0].start, run[-1].end, mean
+
     best: tuple[datetime | None, datetime | None, float] = (None, None, 0.0)
     current_start: datetime | None = None
     current_end: datetime | None = None
     current_sum = 0.0
 
     for slot in slots:
-        usable = slot.quality in (SlotQuality.GOOD, SlotQuality.FAIR) and slot.delta_k > 0.0
-        if usable:
+        if slot.quality in (SlotQuality.GOOD, SlotQuality.FAIR) and slot.delta_k > 0.0:
             if current_start is None:
                 current_start = slot.start
             current_end = slot.end

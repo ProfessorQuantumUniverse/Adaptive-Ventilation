@@ -7,9 +7,10 @@ contradictory advice, a safety rule losing, and the system oscillating at
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 import itertools
+from itertools import pairwise
 import random
-from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -37,7 +38,6 @@ from adaptive_ventilation.engine.state import (
 
 from .scenario import load_all
 
-UTC = timezone.utc
 # Deliberately outside the default quiet hours (22:00-07:00) so these tests
 # exercise the notification path instead of the quiet-hours suppression.
 NOW = datetime(2025, 7, 15, 20, 0, tzinfo=UTC)
@@ -80,19 +80,45 @@ def test_all_specified_rules_exist() -> None:
     """Every rule id from the specification catalogue is implemented."""
     required = {
         # SAFETY
-        "storm_warning", "rain_incoming", "frost_and_heating", "away_and_open",
-        "dark_and_open", "outdoor_pm_spike", "outdoor_sensor_implausible", "data_stale",
+        "storm_warning",
+        "rain_incoming",
+        "frost_and_heating",
+        "away_and_open",
+        "dark_and_open",
+        "outdoor_pm_spike",
+        "outdoor_sensor_implausible",
+        "data_stale",
         "basement_summer_veto",
         # year round
-        "co2_high", "voc_high", "indoor_pm_high", "pm_both_high", "humidity_spike",
-        "mold_risk", "laundry_drying", "internal_load", "window_forgotten",
+        "co2_high",
+        "voc_high",
+        "indoor_pm_high",
+        "pm_both_high",
+        "humidity_spike",
+        "mold_risk",
+        "laundry_drying",
+        "internal_load",
+        "window_forgotten",
         # summer
-        "night_flush", "morning_close", "keep_closed_hot", "solar_shading", "shading_gap",
-        "precool_heatwave", "tropical_night", "thunderstorm_window", "fan_instead",
+        "night_flush",
+        "morning_close",
+        "keep_closed_hot",
+        "solar_shading",
+        "shading_gap",
+        "precool_heatwave",
+        "tropical_night",
+        "thunderstorm_window",
+        "fan_instead",
         "away_prepare",
         # winter
-        "winter_purge_schedule", "avoid_tilt_winter", "dry_air", "passive_solar_gain",
-        "cover_night_insulation", "preheat_before_purge", "inversion_pm", "unheated_room",
+        "winter_purge_schedule",
+        "avoid_tilt_winter",
+        "dry_air",
+        "passive_solar_gain",
+        "cover_night_insulation",
+        "preheat_before_purge",
+        "inversion_pm",
+        "unheated_room",
     }
     assert required <= set(REGISTRY)
 
@@ -249,8 +275,11 @@ def test_evaluation_is_pure(seed: int) -> None:
 
 def test_notifications_never_exceed_the_configured_restraint() -> None:
     """At maximum restraint only HEALTH and SAFETY may still push."""
-    prefs = Preferences(notification_restraint=100, quiet_hours_start=__import__(
-        "datetime").time(23, 59), quiet_hours_end=__import__("datetime").time(0, 1))
+    prefs = Preferences(
+        notification_restraint=100,
+        quiet_hours_start=__import__("datetime").time(23, 59),
+        quiet_hours_end=__import__("datetime").time(0, 1),
+    )
     state = _world(preferences=prefs, outdoor=OutdoorState.create(14.0, 60.0))
     result = evaluate(state)
     for rec in result.recommendations:
@@ -294,7 +323,7 @@ def test_anti_flapping_around_zero_delta_t() -> None:
         rec = result.for_window("living_south")
         actions.append(rec.action if rec else Action.NO_ACTION)
 
-    changes = sum(1 for a, b in zip(actions, actions[1:]) if a != b)
+    changes = sum(1 for a, b in pairwise(actions) if a != b)
     # Two hours of jitter straddling the threshold may legitimately produce one
     # settled transition. Anything beyond that is flapping.
     assert changes <= 2, f"advice flapped {changes} times: {[a.value for a in actions]}"
@@ -396,3 +425,38 @@ def test_manual_hold_gives_in_after_two_contradictions() -> None:
     final = evaluate(hot.with_overrides(now=hot.now + timedelta(minutes=200)), memory)
     rec = final.for_window("w1")
     assert rec is None or rec.action is Action.NO_ACTION
+
+
+# --------------------------------------------------------------------------
+# Schedule units
+# --------------------------------------------------------------------------
+
+
+def test_schedule_reports_kelvin_in_summer_and_grams_in_winter() -> None:
+    """Summing a g/m3 drying margin and calling it Kelvin produced "29 K" windows."""
+    summer = _world(
+        outdoor=OutdoorState.create(16.0, 60.0),
+        forecast=tuple(
+            ForecastHour(time=NOW + timedelta(hours=i), temperature=16.0 + (i % 12), humidity=60.0)
+            for i in range(30)
+        ),
+    )
+    result = evaluate(summer)
+    assert result.schedule.metric == "kelvin"
+    assert result.schedule.best_delta_k < 12.0
+
+    winter = _world(
+        outdoor=OutdoorState.create(-3.0, 85.0),
+        rooms=(RoomState.create("living_room", "Living room", 21.0, 55.0, volume_m3=60.0),),
+        forecast=tuple(
+            ForecastHour(time=NOW + timedelta(hours=i), temperature=-3.0, humidity=85.0)
+            for i in range(30)
+        ),
+    )
+    result = evaluate(winter)
+    assert result.schedule.metric == "grams"
+    # A winter window is a purge slot, not half the night.
+    if result.schedule.best_start and result.schedule.best_end:
+        hours = (result.schedule.best_end - result.schedule.best_start).total_seconds() / 3600
+        assert hours <= 3
+        assert result.schedule.best_delta_k < 15.0

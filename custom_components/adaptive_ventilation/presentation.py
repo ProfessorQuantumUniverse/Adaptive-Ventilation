@@ -10,9 +10,10 @@ Two hard constraints from the specification apply here:
 
 from __future__ import annotations
 
-import json
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, Mapping
+import json
+from typing import Any
 
 from . import messages
 from .calibration import summarise as summarise_learned
@@ -28,9 +29,7 @@ MAX_STATE_LENGTH = 255
 MAX_LINE_LENGTH = 64
 
 
-def recommendation_attributes(
-    rec: Recommendation | None, language: str = "en"
-) -> dict[str, Any]:
+def recommendation_attributes(rec: Recommendation | None, language: str = "en") -> dict[str, Any]:
     """Attribute payload for a recommendation entity."""
     if rec is None:
         return {"reason": None, "recommendation_id": None}
@@ -185,9 +184,7 @@ def panel_payload(coordinator: Any) -> dict[str, Any]:
                 "name": config.name,
                 "temperature": _round(room.temperature) if room else None,
                 "humidity": _round(room.humidity) if room else None,
-                "absolute_humidity": _round(assessment.absolute_humidity)
-                if assessment
-                else None,
+                "absolute_humidity": _round(assessment.absolute_humidity) if assessment else None,
                 "dew_point": _round(assessment.dew_point) if assessment else None,
                 "enthalpy": _round(assessment.enthalpy) if assessment else None,
                 "co2": room.co2 if room else None,
@@ -195,17 +192,13 @@ def panel_payload(coordinator: Any) -> dict[str, Any]:
                 "heating_rate": assessment.heating_rate_k_per_h if assessment else None,
                 "projected": assessment.projected_temperature if assessment else None,
                 "mold_risk": assessment.mold_risk.value if assessment else None,
-                "surface_temperature": assessment.wall_surface_temperature
-                if assessment
-                else None,
+                "surface_temperature": assessment.wall_surface_temperature if assessment else None,
                 "air_quality_score": assessment.air_quality_score if assessment else None,
                 "score_breakdown": assessment.score_breakdown if assessment else {},
                 "confidence": round(room.confidence, 2) if room else None,
                 "estimation_method": room.estimation_method if room else None,
                 "priority": config.priority,
-                "night_potential_k": result.diagnostics.get("night_potential_k", {}).get(
-                    config.id
-                ),
+                "night_potential_k": result.diagnostics.get("night_potential_k", {}).get(config.id),
             }
         )
 
@@ -268,6 +261,7 @@ def panel_payload(coordinator: Any) -> dict[str, Any]:
             "best_start": _iso(result.schedule.best_start),
             "best_end": _iso(result.schedule.best_end),
             "best_delta_k": result.schedule.best_delta_k,
+            "metric": result.schedule.metric,
             "summary_key": result.schedule.summary_key,
             "summary": result.schedule.summary_data,
         },
@@ -282,8 +276,7 @@ def panel_payload(coordinator: Any) -> dict[str, Any]:
             "verdict": result.cooling_budget.verdict_key,
             "verdict_data": result.cooling_budget.verdict_data,
             "history": [
-                {"day": day, "net_k": value}
-                for day, value in coordinator.memory.budget_history
+                {"day": day, "net_k": value} for day, value in coordinator.memory.budget_history
             ],
         },
         "rooms": rooms,
@@ -397,13 +390,9 @@ def sensor_suggestions(coordinator: Any, result: EvaluationResult) -> list[dict[
         if not missing:
             continue
         window_load = sum(
-            loads.get(w.id, 0.0)
-            for w in coordinator.config.windows
-            if w.room_id == config.id
+            loads.get(w.id, 0.0) for w in coordinator.config.windows if w.room_id == config.id
         )
-        window_area = sum(
-            w.area_m2 for w in coordinator.config.windows if w.room_id == config.id
-        )
+        window_area = sum(w.area_m2 for w in coordinator.config.windows if w.room_id == config.id)
         # Big glazed rooms with a high priority benefit most.
         impact = window_area * 10.0 + window_load / 50.0 + (7 - config.priority) * 5.0
         if "temperature" in missing:

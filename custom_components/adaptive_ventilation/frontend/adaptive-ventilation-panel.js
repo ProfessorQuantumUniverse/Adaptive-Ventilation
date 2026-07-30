@@ -982,10 +982,15 @@ function nextTipping(data) {
 function bestWindowText(data, t) {
   const schedule = data.schedule || {};
   if (!schedule.best_start) return "–";
+  // Summer counts Kelvin of cooling, winter counts grams of water removed.
+  const value =
+    schedule.metric === "grams"
+      ? `${fmt(schedule.best_delta_k)} g/m³`
+      : `−${fmt(schedule.best_delta_k)} K`;
   return `${formatTime(schedule.best_start, data.language)} – ${formatTime(
     schedule.best_end,
     data.language
-  )}, ${t.expected} −${fmt(schedule.best_delta_k)} K`;
+  )}, ${t.expected} ${value}`;
 }
 
 function statusLabel(status, language) {

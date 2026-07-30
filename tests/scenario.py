@@ -7,9 +7,9 @@ thresholds is a diff in a YAML file rather than a rewrite of a test.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+import math
 from pathlib import Path
 from typing import Any
 
