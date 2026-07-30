@@ -16,7 +16,7 @@ Settings → Devices & Services → Adaptive Ventilation → **Configure**. Five
 | Setting | Effect when missing |
 |---|---|
 | Weather entity (hourly forecast) | No tipping points, no 24 h plan, no pre-cooling. A repair issue says so. |
-| Outdoor temperature sensor | Falls back to the weather entity. Your own sensor is better — unless it is in the sun, which the integration detects and reports. |
+| Outdoor temperature sensor | Falls back to the weather entity. Your own sensor is better, unless it is in the sun, which the integration detects and reports. |
 | Outdoor humidity sensor | No absolute humidity comparison outdoors, so the drying rules go quiet. |
 | Outdoor PM2.5 / PM10 | The particulate rules never fire. |
 | Weather warnings (DWD / Meteoalarm) | Storm detection falls back to the wind speed threshold alone. |
@@ -44,7 +44,7 @@ self-calibration replaces τ and the cool-down rate with measured ones.
 
 | Setting | Default | Notes |
 |---|---|---|
-| Notification targets | none | Multiple `notify.*` services. Without one, nothing is pushed — the entities still work. |
+| Notification targets | none | Multiple `notify.*` services. Without one, nothing is pushed, the entities still work. |
 | Actionable notifications | on | "Done" / "Snooze 1 h" / "Ignore today". Needs the Companion app. |
 | Quiet hours | 22:00-07:00 | Only SAFETY breaks them. |
 | Max pushes per day | 6 | Comfort and optimisation cannot spend the last third; health can, safety ignores the budget. |
@@ -89,7 +89,7 @@ evening. Turning CO₂ up makes purge recommendations outrank comfort more often
 | Presence sensor | Used by `fan_instead`, which does not suggest a fan for an empty room. |
 | Climate entity | Read only, plus the frost veto and the preheat hint. |
 | Fan entity | Enables the `FAN_ON` recommendations. |
-| Power meter | Above 1 kW the `internal_load` rule fires — "oven on, open the kitchen window now". |
+| Power meter | Above 1 kW the `internal_load` rule fires, "oven on, open the kitchen window now". |
 | Volume, or area + height | Drives the purge duration and the thermal mass. Default 40 m³. |
 | Target band | Overrides the global band for this room. |
 | Bedroom | Gets an urgency bonus at night. |
@@ -107,7 +107,7 @@ learned offset (0.75) → model (0.5) → flat average (0.4) → `unknown`.
 
 It never silently guesses: the confidence and the method are attributes on every estimated
 entity, and anything below the confidence threshold is shown but never pushed. Safety rules
-still apply — storm, rain, absence and darkness need no temperature at all.
+still apply, storm, rain, absence and darkness need no temperature at all.
 
 ---
 
@@ -141,5 +141,5 @@ still apply — storm, rain, absence and darkness need no temperature at all.
 | `away` | Security rules only; nothing is recommended that needs someone at home. |
 | `off` | No recommendations at all. |
 
-`manual_hold` is not selectable — the engine enters it per target when you ignore the same advice
+`manual_hold` is not selectable, the engine enters it per target when you ignore the same advice
 twice in one day, and drops it at midnight.
