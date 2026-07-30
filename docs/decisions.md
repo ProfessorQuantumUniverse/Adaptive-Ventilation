@@ -12,7 +12,7 @@ different.
 ## The seven open questions
 
 **1. Is the domain `adaptive_ventilation` free?**
-Assumed yes, and used. It is not registered in `home-assistant/brands` yet — that is the one
+Assumed yes, and used. It is not registered in `home-assistant/brands` yet, that is the one
 outstanding item in `quality_scale.yaml`. Changing the domain later means a painful migration,
 so if it turns out to be taken, do it before the first release, not after.
 
@@ -31,7 +31,7 @@ German housing.
 **4. Companion app in use?**
 Assumed yes. Actionable notifications ("Done" / "Snooze 1 h" / "Ignore today") are on by default
 and can be switched off. Without the Companion app the notifications still arrive, just without
-buttons — nothing breaks.
+buttons, nothing breaks.
 
 **5. How much recorder history?**
 Unknown. The calibration therefore looks at seven days, requires at least three usable episodes
@@ -45,7 +45,7 @@ window. Everything else is a recommendation. This is the conservative reading of
 dort direkt eingreifen, wo der Nutzer es explizit erlaubt". Windows are never motorised.
 
 **7. German or English for the recommendation texts?**
-English is the primary language of every repository artefact — code, docs, entity names, as the
+English is the primary language of every repository artefact, code, docs, entity names, as the
 specification asks. The user-visible texts follow `hass.config.language`, with a complete German
 translation of the UI (`translations/de.json`) and of the recommendation sentences
 (`messages.py`). Anything else falls back to English.
@@ -60,8 +60,8 @@ oversight.
 ### One file per rule *group*, not per rule
 
 The specification asks for "je Regel eine Datei". There are 36 rules; thirty-six four-line files
-make the catalogue harder to read, not easier. Rules are grouped by domain — `safety.py`,
-`air_quality.py`, `moisture.py`, `summer.py`, `winter.py`, `covers.py`, `general.py` — and each
+make the catalogue harder to read, not easier. Rules are grouped by domain, `safety.py`,
+`air_quality.py`, `moisture.py`, `summer.py`, `winter.py`, `covers.py`, `general.py`, and each
 one is still an individually addressable, individually testable registry entry with its own id,
 priority and season filter. The registry, not the filesystem, is the unit of granularity.
 
@@ -77,7 +77,7 @@ plain SVG, exactly as the specification recommends.
 
 The specification wants "with these values you would have had 4 instead of 9 notifications
 today". That needs a replay over recorder history. The panel instead re-runs the engine on the
-*current* world state with the candidate settings and shows the difference immediately — which is
+*current* world state with the candidate settings and shows the difference immediately, which is
 fast, honest about what it measures, and enough to understand what a slider does. The real replay
 over history exists as `scripts/replay.py`, and the panel says so.
 
