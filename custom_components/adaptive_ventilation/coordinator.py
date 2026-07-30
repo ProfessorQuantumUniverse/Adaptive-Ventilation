@@ -241,10 +241,11 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
 
         forecast = await self._async_forecast(weather_entity)
         presence = read_bool(self.hass, options.get(CONF_PRESENCE_ENTITY))
+        now = dt_util.utcnow()
 
         return WorldState(
-            now=dt_util.utcnow(),
-            outdoor=build_outdoor(self.hass, options, weather_state),
+            now=now,
+            outdoor=build_outdoor(self.hass, options, weather_state, _forecast_at(forecast, now)),
             rooms=build_rooms(self.hass, self.config.rooms),
             windows=build_windows(self.hass, self.config.windows),
             forecast=forecast,
@@ -499,6 +500,17 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
     @property
     def device_name(self) -> str:
         return self.config_entry.title
+
+
+def _forecast_at(forecast: tuple[Any, ...], moment: datetime) -> Any | None:
+    """Forecast entry closest to ``moment``, used to fill in cloud cover."""
+    best = None
+    best_delta = timedelta(minutes=90)
+    for entry in forecast:
+        delta = abs(entry.time - moment)
+        if delta <= best_delta:
+            best, best_delta = entry, delta
+    return best
 
 
 def _recommendation_payload(rec: Recommendation) -> dict[str, Any]:

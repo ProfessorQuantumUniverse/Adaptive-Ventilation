@@ -161,11 +161,16 @@
                 "cover_auto_allowed": "Darf automatisch gesteuert werden",
                 "is_ground_floor": "Erdgeschoss",
                 "ok_when_away": "Darf bei Abwesenheit offen bleiben",
-                "rain_safe": "Darf bei Regen offen bleiben"
+                "rain_safe": "Darf bei Regen offen bleiben",
+                "manual_cover": "Rollladen von Hand bedient",
+                "sun_from": "Sonne erreicht dieses Fenster ab",
+                "sun_until": "Sonne verlässt dieses Fenster um"
               },
               "data_description": {
                 "cover_external": "Außenliegende Rollläden halten rund 80 % des Eintrags ab, innenliegende nur etwa 30 %.",
-                "cover_auto_allowed": "Standardmäßig aus. Ohne diesen Haken wird ausschließlich empfohlen."
+                "cover_auto_allowed": "Standardmäßig aus. Ohne diesen Haken wird ausschließlich empfohlen.",
+                "manual_cover": "Es gibt einen Rollladen, aber Home Assistant kann ihn nicht fahren. Die Integration sagt dir dann, wann du ihn schließen und wieder öffnen solltest.",
+                "sun_from": "Nur nötig, wenn etwas verschattet, zum Beispiel das Nachbargebäude. Ein Südfenster, das erst mittags Sonne bekommt, bekommt hier 12:00."
               }
             }
           }
@@ -193,7 +198,10 @@
                 "cover_auto_allowed": "Darf automatisch gesteuert werden",
                 "is_ground_floor": "Erdgeschoss",
                 "ok_when_away": "Darf bei Abwesenheit offen bleiben",
-                "rain_safe": "Darf bei Regen offen bleiben"
+                "rain_safe": "Darf bei Regen offen bleiben",
+                "manual_cover": "Rollladen von Hand bedient",
+                "sun_from": "Sonne erreicht dieses Fenster ab",
+                "sun_until": "Sonne verlässt dieses Fenster um"
               }
             }
           }
@@ -201,7 +209,8 @@
       },
       "error": {
         "required": "Dieses Feld ist erforderlich.",
-        "cover_required": "Für die Automatik wird eine Rollladen-Entität gebraucht."
+        "cover_required": "Für die Automatik wird eine Rollladen-Entität gebraucht.",
+        "cover_conflict": "Entweder eine Rollladen-Entität oder „von Hand bedient“ – nicht beides."
       },
       "abort": {
         "no_rooms": "Zuerst einen Raum anlegen – ein Fenster gehört immer zu einem.",
@@ -218,7 +227,9 @@
           "building": "Gebäude",
           "notifications": "Benachrichtigungen",
           "weights": "Prioritäten",
-          "thresholds": "Schwellwerte und Ruhe"
+          "thresholds": "Schwellwerte und Ruhe",
+          "profile": "Profil",
+          "reset": "Tuning zurücksetzen"
         }
       },
       "sources": {
@@ -301,6 +312,20 @@
           "delta_t_hysteresis": "Das Totband ist dreimal so breit wie dieser Wert – damit flattert die Empfehlung bei ΔT ≈ 0 nicht.",
           "close_lead_time_minutes": "„In 30 Minuten zumachen“ statt einer Meldung, die zu spät kommt."
         }
+      },
+      "profile": {
+        "title": "Profil",
+        "description": "Eine Entscheidung statt sechs Schieberegler. Legt fest, wie oft benachrichtigt wird und wie schnell sich die Empfehlung ändern darf. Einzelne Werte in den anderen Schritten haben weiterhin Vorrang – es wird also nichts weggenommen.",
+        "data": {
+          "profile": "Profil"
+        }
+      },
+      "reset": {
+        "title": "Tuning zurücksetzen",
+        "description": "Setzt alle Schwellwerte, Gewichtungen und Ruhezeiten auf den Standard zurück. Deine Sensoren, die Wetter-Entität, das Gebäudeprofil und die Benachrichtigungsziele bleiben unangetastet.",
+        "data": {
+          "confirm": "Ja, Tuning zurücksetzen"
+        }
       }
     }
   },
@@ -322,15 +347,33 @@
           "unavailable_data": "Keine brauchbaren Daten"
         }
       },
-      "next_action": { "name": "Nächste Aktion" },
-      "tipping_point_morning": { "name": "Kipppunkt morgens" },
-      "tipping_point_evening": { "name": "Kipppunkt abends" },
-      "cooling_budget_today": { "name": "Kühlbudget heute Nacht" },
-      "cooling_balance_3d": { "name": "Kühlbilanz, 3 Tage" },
-      "open_windows_count": { "name": "Offene Fenster" },
-      "absolute_humidity": { "name": "Absolute Feuchte" },
-      "dew_point": { "name": "Taupunkt" },
-      "enthalpy": { "name": "Enthalpie" },
+      "next_action": {
+        "name": "Nächste Aktion"
+      },
+      "tipping_point_morning": {
+        "name": "Kipppunkt morgens"
+      },
+      "tipping_point_evening": {
+        "name": "Kipppunkt abends"
+      },
+      "cooling_budget_today": {
+        "name": "Kühlbudget heute Nacht"
+      },
+      "cooling_balance_3d": {
+        "name": "Kühlbilanz, 3 Tage"
+      },
+      "open_windows_count": {
+        "name": "Offene Fenster"
+      },
+      "absolute_humidity": {
+        "name": "Absolute Feuchte"
+      },
+      "dew_point": {
+        "name": "Taupunkt"
+      },
+      "enthalpy": {
+        "name": "Enthalpie"
+      },
       "mold_risk": {
         "name": "Schimmelrisiko",
         "state": {
@@ -341,10 +384,18 @@
           "condensation": "Kondensation"
         }
       },
-      "wall_surface_temperature": { "name": "Wandoberflächentemperatur" },
-      "heating_rate": { "name": "Temperaturtrend" },
-      "air_quality_score": { "name": "Luftqualitäts-Score" },
-      "temperature_estimated": { "name": "Temperatur (geschätzt)" },
+      "wall_surface_temperature": {
+        "name": "Wandoberflächentemperatur"
+      },
+      "heating_rate": {
+        "name": "Temperaturtrend"
+      },
+      "air_quality_score": {
+        "name": "Luftqualitäts-Score"
+      },
+      "temperature_estimated": {
+        "name": "Temperatur (geschätzt)"
+      },
       "recommendation": {
         "name": "Empfehlung",
         "state": {
@@ -362,13 +413,23 @@
           "no_action": "Nichts zu tun"
         }
       },
-      "solar_load": { "name": "Solarlast" }
+      "solar_load": {
+        "name": "Solarlast"
+      }
     },
     "binary_sensor": {
-      "action_required": { "name": "Handlungsbedarf" },
-      "storm_risk": { "name": "Sturmrisiko" },
-      "purge_running": { "name": "Stoßlüften läuft" },
-      "should_be_open": { "name": "Sollte offen sein" }
+      "action_required": {
+        "name": "Handlungsbedarf"
+      },
+      "storm_risk": {
+        "name": "Sturmrisiko"
+      },
+      "purge_running": {
+        "name": "Stoßlüften läuft"
+      },
+      "should_be_open": {
+        "name": "Sollte offen sein"
+      }
     },
     "select": {
       "mode": {
@@ -384,37 +445,87 @@
       }
     },
     "number": {
-      "weight_temperature": { "name": "Gewichtung: Temperatur" },
-      "weight_humidity": { "name": "Gewichtung: Feuchte" },
-      "weight_co2": { "name": "Gewichtung: CO₂" },
-      "weight_particulate": { "name": "Gewichtung: Feinstaub" },
-      "summer_target_min": { "name": "Sommer-Ziel, untere Grenze" },
-      "summer_target_max": { "name": "Sommer-Ziel, obere Grenze" },
-      "winter_target_min": { "name": "Winter-Ziel, untere Grenze" },
-      "winter_target_max": { "name": "Winter-Ziel, obere Grenze" },
-      "co2_threshold": { "name": "CO₂-Schwelle" },
-      "pm25_indoor_threshold": { "name": "PM2.5-Schwelle innen" },
-      "delta_t_hysteresis": { "name": "ΔT-Hysterese" },
-      "min_state_duration_minutes": { "name": "Mindest-Verweildauer" },
-      "cooldown_minutes": { "name": "Cooldown" },
-      "close_lead_time_minutes": { "name": "Vorlaufzeit zum Schließen" },
-      "max_pushes_per_day": { "name": "Maximale Pushes pro Tag" }
+      "weight_temperature": {
+        "name": "Gewichtung: Temperatur"
+      },
+      "weight_humidity": {
+        "name": "Gewichtung: Feuchte"
+      },
+      "weight_co2": {
+        "name": "Gewichtung: CO₂"
+      },
+      "weight_particulate": {
+        "name": "Gewichtung: Feinstaub"
+      },
+      "summer_target_min": {
+        "name": "Sommer-Ziel, untere Grenze"
+      },
+      "summer_target_max": {
+        "name": "Sommer-Ziel, obere Grenze"
+      },
+      "winter_target_min": {
+        "name": "Winter-Ziel, untere Grenze"
+      },
+      "winter_target_max": {
+        "name": "Winter-Ziel, obere Grenze"
+      },
+      "co2_threshold": {
+        "name": "CO₂-Schwelle"
+      },
+      "pm25_indoor_threshold": {
+        "name": "PM2.5-Schwelle innen"
+      },
+      "delta_t_hysteresis": {
+        "name": "ΔT-Hysterese"
+      },
+      "min_state_duration_minutes": {
+        "name": "Mindest-Verweildauer"
+      },
+      "cooldown_minutes": {
+        "name": "Cooldown"
+      },
+      "close_lead_time_minutes": {
+        "name": "Vorlaufzeit zum Schließen"
+      },
+      "max_pushes_per_day": {
+        "name": "Maximale Pushes pro Tag"
+      }
     },
     "switch": {
-      "notifications": { "name": "Benachrichtigungen" },
-      "cover_automation": { "name": "Rollladen-Automatik" },
-      "actionable_notifications": { "name": "Actionable Notifications" }
+      "notifications": {
+        "name": "Benachrichtigungen"
+      },
+      "cover_automation": {
+        "name": "Rollladen-Automatik"
+      },
+      "actionable_notifications": {
+        "name": "Actionable Notifications"
+      }
     },
     "button": {
-      "purge_now": { "name": "Jetzt stoßlüften" },
-      "snooze_1h": { "name": "1 h Ruhe" },
-      "recalibrate": { "name": "Neu kalibrieren" },
-      "purge_room": { "name": "Diesen Raum stoßlüften" }
+      "purge_now": {
+        "name": "Jetzt stoßlüften"
+      },
+      "snooze_1h": {
+        "name": "1 h Ruhe"
+      },
+      "recalibrate": {
+        "name": "Neu kalibrieren"
+      },
+      "purge_room": {
+        "name": "Diesen Raum stoßlüften"
+      }
     },
     "text": {
-      "display_line1": { "name": "Displayzeile 1" },
-      "display_line2": { "name": "Displayzeile 2" },
-      "display_line3": { "name": "Displayzeile 3" }
+      "display_line1": {
+        "name": "Displayzeile 1"
+      },
+      "display_line2": {
+        "name": "Displayzeile 2"
+      },
+      "display_line3": {
+        "name": "Displayzeile 3"
+      }
     }
   },
   "selector": {
@@ -473,6 +584,13 @@
         "internal_gain_w": "Interne Lasten",
         "air_changes_per_hour": "Luftwechselrate"
       }
+    },
+    "profile": {
+      "options": {
+        "quiet": "Ruhig – wenige Meldungen, ändert seine Meinung langsam",
+        "balanced": "Ausgewogen – der Standard",
+        "eager": "Maximal optimiert – meldet alles"
+      }
     }
   },
   "services": {
@@ -480,71 +598,140 @@
       "name": "Stoßlüften starten",
       "description": "Startet einen Stoßlüft-Timer mit der für die aktuelle Außentemperatur berechneten Dauer.",
       "fields": {
-        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
-        "room": { "name": "Raum", "description": "Raumname oder Untereintrags-ID. Leer bedeutet alle Räume." },
-        "duration": { "name": "Dauer", "description": "Überschreibt die berechnete Dauer." }
+        "entry_id": {
+          "name": "Konfiguration",
+          "description": "Welche Wohnung, falls es mehrere gibt."
+        },
+        "room": {
+          "name": "Raum",
+          "description": "Raumname oder Untereintrags-ID. Leer bedeutet alle Räume."
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Überschreibt die berechnete Dauer."
+        }
       }
     },
     "snooze": {
       "name": "Stummschalten",
       "description": "Schaltet eine Empfehlung oder alle für eine Weile stumm.",
       "fields": {
-        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
-        "recommendation_id": { "name": "Empfehlung", "description": "Leer bedeutet alle aktuellen Empfehlungen." },
-        "scope": { "name": "Dauer", "description": "Wie lange Ruhe sein soll." }
+        "entry_id": {
+          "name": "Konfiguration",
+          "description": "Welche Wohnung, falls es mehrere gibt."
+        },
+        "recommendation_id": {
+          "name": "Empfehlung",
+          "description": "Leer bedeutet alle aktuellen Empfehlungen."
+        },
+        "scope": {
+          "name": "Dauer",
+          "description": "Wie lange Ruhe sein soll."
+        }
       }
     },
     "acknowledge": {
       "name": "Erledigt melden",
       "description": "Markiert eine Empfehlung als erledigt: startet den Cooldown und liefert ein Lernsignal.",
       "fields": {
-        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
-        "recommendation_id": { "name": "Empfehlung", "description": "Die ID aus den Entitäts-Attributen." }
+        "entry_id": {
+          "name": "Konfiguration",
+          "description": "Welche Wohnung, falls es mehrere gibt."
+        },
+        "recommendation_id": {
+          "name": "Empfehlung",
+          "description": "Die ID aus den Entitäts-Attributen."
+        }
       }
     },
     "set_mode": {
       "name": "Modus setzen",
       "description": "Wechselt zwischen Automatik, Sommer, Winter, Abwesend und Aus.",
       "fields": {
-        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
-        "mode": { "name": "Modus", "description": "Der neue Modus." }
+        "entry_id": {
+          "name": "Konfiguration",
+          "description": "Welche Wohnung, falls es mehrere gibt."
+        },
+        "mode": {
+          "name": "Modus",
+          "description": "Der neue Modus."
+        }
       }
     },
     "recalibrate": {
       "name": "Neu kalibrieren",
       "description": "Führt die Selbstkalibrierung gegen die Recorder-Historie sofort aus.",
       "fields": {
-        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." }
+        "entry_id": {
+          "name": "Konfiguration",
+          "description": "Welche Wohnung, falls es mehrere gibt."
+        }
       }
     },
     "override_parameter": {
       "name": "Gelernten Wert überschreiben",
       "description": "Überschreibt oder setzt einen selbstkalibrierten Parameter zurück.",
       "fields": {
-        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
-        "room": { "name": "Raum", "description": "Raumname oder Untereintrags-ID." },
-        "parameter": { "name": "Parameter", "description": "Welcher gelernte Wert geändert wird." },
-        "value": { "name": "Wert", "description": "Der neue Wert." },
-        "reset": { "name": "Zurücksetzen", "description": "Override verwerfen und wieder lernen lassen." }
+        "entry_id": {
+          "name": "Konfiguration",
+          "description": "Welche Wohnung, falls es mehrere gibt."
+        },
+        "room": {
+          "name": "Raum",
+          "description": "Raumname oder Untereintrags-ID."
+        },
+        "parameter": {
+          "name": "Parameter",
+          "description": "Welcher gelernte Wert geändert wird."
+        },
+        "value": {
+          "name": "Wert",
+          "description": "Der neue Wert."
+        },
+        "reset": {
+          "name": "Zurücksetzen",
+          "description": "Override verwerfen und wieder lernen lassen."
+        }
       }
     },
     "export_diagnostics": {
       "name": "Diagnose exportieren",
       "description": "Gibt den kompletten internen Zustand als Service-Antwort zurück – praktisch für Fehlerberichte.",
       "fields": {
-        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." }
+        "entry_id": {
+          "name": "Konfiguration",
+          "description": "Welche Wohnung, falls es mehrere gibt."
+        }
       }
     },
     "simulate": {
       "name": "Simulieren",
       "description": "Was wäre wenn: Fenster X von t1 bis t2 offen – erwartete Kurve im Vergleich zu „nichts tun“.",
       "fields": {
-        "entry_id": { "name": "Konfiguration", "description": "Welche Wohnung, falls es mehrere gibt." },
-        "room": { "name": "Raum", "description": "Welcher Raum simuliert wird." },
-        "window": { "name": "Fenster", "description": "Welche Fenster geöffnet werden. Leer bedeutet alle." },
-        "start": { "name": "Offen ab", "description": "Beginn des Lüftungsfensters." },
-        "end": { "name": "Offen bis", "description": "Ende des Lüftungsfensters." },
-        "shading_from": { "name": "Verschattung ab", "description": "Ab wann die Rollläden runterfahren." }
+        "entry_id": {
+          "name": "Konfiguration",
+          "description": "Welche Wohnung, falls es mehrere gibt."
+        },
+        "room": {
+          "name": "Raum",
+          "description": "Welcher Raum simuliert wird."
+        },
+        "window": {
+          "name": "Fenster",
+          "description": "Welche Fenster geöffnet werden. Leer bedeutet alle."
+        },
+        "start": {
+          "name": "Offen ab",
+          "description": "Beginn des Lüftungsfensters."
+        },
+        "end": {
+          "name": "Offen bis",
+          "description": "Ende des Lüftungsfensters."
+        },
+        "shading_from": {
+          "name": "Verschattung ab",
+          "description": "Ab wann die Rollläden runterfahren."
+        }
       }
     }
   },

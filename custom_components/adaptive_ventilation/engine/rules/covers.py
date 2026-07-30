@@ -128,3 +128,54 @@ def shading_gap(ctx: EvaluationContext) -> Iterable[Recommendation]:
         notify=False,
         confidence=0.8,
     )
+
+
+@rule(
+    "shading_release",
+    Priority.OPTIMIZATION,
+    seasons=SUMMERISH,
+    description="The sun has moved on - the blind can go back up",
+)
+def shading_release(ctx: EvaluationContext) -> Iterable[Recommendation]:
+    """Tell people when they can have their daylight back.
+
+    Only advising "close it" and never "you can open it again" trains people to
+    sit in the dark all evening, or to ignore the integration. Matters most for
+    a blind operated by hand, where nothing else will ever raise it.
+    """
+    state = ctx.state
+    for window in state.windows:
+        if not window.has_cover:
+            continue
+        # Only if we were the ones who asked for it to be closed.
+        tracked = ctx.memory.target(f"{window.id}:cover")
+        if tracked.action is not Action.COVER_DOWN:
+            continue
+        if window.cover_position is not None and window.cover_position > 60:
+            continue  # already open again
+
+        load = ctx.solar_loads.get(window.id, 0.0)
+        upcoming = ctx.minutes_until(ctx.sun_ahead(window))
+        if load >= SHADING_THRESHOLD_W * 0.4:
+            continue
+        if upcoming is not None and 0 <= upcoming <= 60:
+            continue  # it is about to come back round
+
+        room = ctx.room_of(window)
+        yield make(
+            ctx,
+            "shading_release",
+            f"{window.id}:cover",
+            Action.COVER_UP,
+            Priority.OPTIMIZATION,
+            "shading_release",
+            urgency=20,
+            room_id=room.id if room else None,
+            reason_data={
+                "window": window.name,
+                "room": room.name if room else None,
+                "load_w": int(load),
+            },
+            notify=window.cover_is_manual,
+            confidence=0.9,
+        )

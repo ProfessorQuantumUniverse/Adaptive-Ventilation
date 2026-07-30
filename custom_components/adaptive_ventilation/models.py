@@ -43,6 +43,7 @@ from .const import (
     CONF_IS_MOISTURE_SOURCE,
     CONF_IS_TOP_FLOOR,
     CONF_IS_UNHEATED,
+    CONF_MANUAL_COVER,
     CONF_OCCUPANCY_SENSOR,
     CONF_OK_WHEN_AWAY,
     CONF_OUTDOOR_HUMIDITY,
@@ -52,6 +53,7 @@ from .const import (
     CONF_PM25_SENSOR,
     CONF_POWER_SENSOR,
     CONF_PRIORITY,
+    CONF_PROFILE,
     CONF_QUIET_END,
     CONF_QUIET_START,
     CONF_RAIN_SAFE,
@@ -60,6 +62,8 @@ from .const import (
     CONF_ROOM,
     CONF_ROOM_AREA,
     CONF_ROOM_NAME,
+    CONF_SUN_FROM,
+    CONF_SUN_UNTIL,
     CONF_TARGET_MAX,
     CONF_TARGET_MIN,
     CONF_TEMPERATURE_SENSOR,
@@ -78,6 +82,7 @@ from .const import (
     ESTIMATION_CONFIDENCE,
     ESTIMATION_NONE,
     ESTIMATION_REFERENCE,
+    PROFILES,
     STALE_AFTER,
 )
 from .engine.state import (
@@ -231,10 +236,13 @@ class WindowConfig:
     cover_entity: str | None = None
     cover_external: bool = True
     cover_auto_allowed: bool = False
+    manual_cover: bool = False
     is_ground_floor: bool = False
     ok_when_away: bool = False
     rain_safe: bool = False
     horizon_profile: tuple[float, ...] | None = None
+    sun_from: time | None = None
+    sun_until: time | None = None
 
     @classmethod
     def from_subentry(cls, subentry_id: str, data: Mapping[str, Any]) -> WindowConfig:
@@ -252,10 +260,13 @@ class WindowConfig:
             cover_entity=data.get(CONF_COVER_ENTITY),
             cover_external=bool(data.get(CONF_COVER_EXTERNAL, True)),
             cover_auto_allowed=bool(data.get(CONF_COVER_AUTO, False)),
+            manual_cover=bool(data.get(CONF_MANUAL_COVER, False)),
             is_ground_floor=bool(data.get(CONF_GROUND_FLOOR, False)),
             ok_when_away=bool(data.get(CONF_OK_WHEN_AWAY, False)),
             rain_safe=bool(data.get(CONF_RAIN_SAFE, False)),
             horizon_profile=tuple(float(v) for v in horizon) if horizon else None,
+            sun_from=_parse_time(data.get(CONF_SUN_FROM)),
+            sun_until=_parse_time(data.get(CONF_SUN_UNTIL)),
         )
 
     @property
@@ -303,8 +314,13 @@ class ParsedConfig:
 
 
 def build_preferences(options: Mapping[str, Any]) -> Preferences:
-    """Turn the options flow result into engine :class:`Preferences`."""
-    kwargs: dict[str, Any] = {}
+    """Turn the options flow result into engine :class:`Preferences`.
+
+    A profile supplies the base values and any explicit setting overrides it,
+    so picking "quiet" is a safe one-click move that still leaves every
+    individual knob reachable.
+    """
+    kwargs: dict[str, Any] = dict(PROFILES.get(str(options.get(CONF_PROFILE, "")), {}))
     for name in Preferences.__dataclass_fields__:
         if name in (CONF_QUIET_START, CONF_QUIET_END):
             continue
@@ -317,12 +333,32 @@ def build_preferences(options: Mapping[str, Any]) -> Preferences:
         if parsed is not None:
             kwargs[key] = parsed
 
+    _repair_bands(kwargs)
+
     try:
         return Preferences(**kwargs)
     except TypeError:  # pragma: no cover - defensive against stale options
         _LOGGER.warning("Ignoring unknown preference keys in %s", sorted(kwargs))
         valid = {k: v for k, v in kwargs.items() if k in Preferences.__dataclass_fields__}
         return Preferences(**valid)
+
+
+def _repair_bands(kwargs: dict[str, Any]) -> None:
+    """Swap inverted min/max pairs instead of quietly misbehaving.
+
+    A comfort band with the minimum above the maximum makes every temperature
+    look out of range, which reads as "the integration is broken" rather than
+    "I typed the numbers the wrong way round".
+    """
+    for low_key, high_key in (
+        ("summer_target_min", "summer_target_max"),
+        ("winter_target_min", "winter_target_max"),
+        ("humidity_target_min", "humidity_target_max"),
+    ):
+        low, high = kwargs.get(low_key), kwargs.get(high_key)
+        if low is not None and high is not None and float(low) > float(high):
+            _LOGGER.warning("%s (%s) was above %s (%s) - swapped", low_key, low, high_key, high)
+            kwargs[low_key], kwargs[high_key] = high, low
 
 
 def build_building(
@@ -391,8 +427,53 @@ def last_changed(hass: HomeAssistant, entity_id: str | None) -> datetime | None:
     return None if state is None else state.last_changed
 
 
+#: Rough cloud cover in percent per weather condition, used only when neither
+#: the weather entity nor the forecast reports a number. Without this the solar
+#: model silently assumes a clear sky on an overcast day.
+CONDITION_CLOUD_COVER: dict[str, float] = {
+    "sunny": 0.0,
+    "clear-night": 0.0,
+    "windy": 10.0,
+    "windy-variant": 30.0,
+    "partlycloudy": 40.0,
+    "cloudy": 90.0,
+    "fog": 100.0,
+    "hail": 100.0,
+    "lightning": 85.0,
+    "lightning-rainy": 100.0,
+    "pouring": 100.0,
+    "rainy": 100.0,
+    "snowy": 100.0,
+    "snowy-rainy": 100.0,
+    "exceptional": 50.0,
+}
+
+
+def _cloud_coverage(
+    attributes: Mapping[str, Any], forecast_now: ForecastHour | None
+) -> float | None:
+    """Cloud cover in percent: state, then forecast, then the condition word.
+
+    Several popular weather integrations only put ``cloud_coverage`` in the
+    forecast, never on the state. Taking None to mean "clear" made every
+    shading recommendation far too eager on a grey day.
+    """
+    value = _as_float(attributes.get("cloud_coverage"))
+    if value is not None:
+        return value
+    if forecast_now is not None and forecast_now.cloud_coverage is not None:
+        return forecast_now.cloud_coverage
+    condition = attributes.get("condition")
+    if isinstance(condition, str):
+        return CONDITION_CLOUD_COVER.get(condition)
+    return None
+
+
 def build_outdoor(
-    hass: HomeAssistant, options: Mapping[str, Any], weather: State | None
+    hass: HomeAssistant,
+    options: Mapping[str, Any],
+    weather: State | None,
+    forecast_now: ForecastHour | None = None,
 ) -> OutdoorState:
     """Outdoor conditions: own sensors first, weather entity as the fallback."""
     now = dt_util.utcnow()
@@ -430,7 +511,7 @@ def build_outdoor(
         wind_bearing=_as_float(weather_attrs.get("wind_bearing")),
         precipitation=_as_float(weather_attrs.get("precipitation")),
         precipitation_probability=_as_float(weather_attrs.get("precipitation_probability")),
-        cloud_coverage=_as_float(weather_attrs.get("cloud_coverage")),
+        cloud_coverage=_cloud_coverage(weather_attrs, forecast_now),
         illuminance=read_float(hass, options.get(CONF_ILLUMINANCE)),
         pressure=_as_float(weather_attrs.get("pressure")),
         source=source,  # type: ignore[arg-type]
@@ -589,8 +670,59 @@ def _with_estimate(
     )
 
 
+#: Resolution of the generated shading horizon: 36 sectors of 10 degrees.
+HORIZON_SECTORS = 36
+#: Elevation used to mark a sector as fully blocked.
+HORIZON_BLOCKED = 90.0
+
+
+def horizon_from_sun_hours(
+    sun_from: time | None,
+    sun_until: time | None,
+    latitude: float,
+    longitude: float,
+    reference: datetime | None = None,
+) -> tuple[float, ...] | None:
+    """Turn "the sun only reaches this window from 13:00" into a shading horizon.
+
+    A south facing window behind a taller building gets no direct sun until
+    midday, and without this the solar model happily plans shading for 09:00.
+    Asking for a time is something people can answer by looking out of the
+    window; asking for an obstruction elevation in degrees is not.
+
+    The times are converted into sun *azimuths*, which is what the shading
+    check works on and which barely moves with the season, unlike the clock
+    time of sunrise. Recomputed on every update, so it follows the sun through
+    the year.
+    """
+    if sun_from is None and sun_until is None:
+        return None
+
+    from .engine.solar import sun_position
+
+    moment = reference or dt_util.now()
+
+    def azimuth_at(clock: time) -> float:
+        local = moment.replace(hour=clock.hour, minute=clock.minute, second=0, microsecond=0)
+        _elevation, azimuth = sun_position(dt_util.as_utc(local), latitude, longitude)
+        return azimuth
+
+    start = azimuth_at(sun_from) if sun_from is not None else 0.0
+    end = azimuth_at(sun_until) if sun_until is not None else 360.0
+
+    step = 360.0 / HORIZON_SECTORS
+    return tuple(
+        HORIZON_BLOCKED
+        if (sector * step + step / 2.0) < start or (sector * step + step / 2.0) > end
+        else 0.0
+        for sector in range(HORIZON_SECTORS)
+    )
+
+
 def build_windows(hass: HomeAssistant, configs: Iterable[WindowConfig]) -> tuple[WindowState, ...]:
     """Window state, including tilt detection and cover position."""
+    latitude = hass.config.latitude
+    longitude = hass.config.longitude
     windows: list[WindowState] = []
     for config in configs:
         contact = hass.states.get(config.contact_sensor) if config.contact_sensor else None
@@ -631,8 +763,10 @@ def build_windows(hass: HomeAssistant, configs: Iterable[WindowConfig]) -> tuple
                 cover_entity=config.cover_entity,
                 cover_position=cover_position,
                 cover_external=config.cover_external,
-                cover_auto_allowed=config.cover_auto_allowed,
-                horizon_profile=config.horizon_profile,
+                cover_auto_allowed=config.cover_auto_allowed and config.cover_entity is not None,
+                manual_cover=config.manual_cover,
+                horizon_profile=config.horizon_profile
+                or horizon_from_sun_hours(config.sun_from, config.sun_until, latitude, longitude),
             )
         )
     return tuple(windows)

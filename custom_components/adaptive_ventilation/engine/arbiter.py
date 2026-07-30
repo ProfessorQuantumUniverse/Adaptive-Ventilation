@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import replace
 from datetime import timedelta
+from typing import Any
 
 from .context import EvaluationContext
 from .state import (
@@ -105,14 +106,15 @@ def arbitrate(
     for window in state.windows:
         if window.id in covered:
             continue
+        reason_key, reason_data = _idle_reason(ctx, window)
         idle = Recommendation(
             id=f"idle:{window.id}",
             target=window.id,
             action=Action.NO_ACTION,
             priority=Priority.OPTIMIZATION,
             urgency=0,
-            reason_key="nothing_to_do",
-            reason_data={"window": window.name},
+            reason_key=reason_key,
+            reason_data=reason_data,
             room_id=window.room_id,
             notify=False,
             valid_from=state.now,
@@ -268,6 +270,40 @@ def _contradicted(window: WindowState, action: Action) -> bool:
     if action in OPENING_ACTIONS:
         return not window.is_open
     return False
+
+
+def _idle_reason(ctx: EvaluationContext, window: WindowState) -> tuple[str, dict[str, Any]]:
+    """Say *why* there is nothing to do.
+
+    A bare "nothing to do" while it is 30 degrees outside reads like a broken
+    integration. Almost always there is a concrete reason - no indoor
+    temperature for that room, stale outdoor data, or genuinely nothing to gain
+    because inside and outside are the same - and naming it is the difference
+    between a bug report and an "ah, right".
+    """
+    state = ctx.state
+    data: dict[str, Any] = {"window": window.name}
+
+    if state.mode is Mode.OFF:
+        return "idle_off", data
+    if state.outdoor.is_stale:
+        return "idle_stale", data
+    if state.is_away:
+        return "idle_away", data
+
+    room = ctx.state.room(window.room_id)
+    data["room"] = room.name if room else window.room_id
+    if room is None or room.temperature is None:
+        return "idle_no_room_data", data
+
+    delta_t = state.delta_t(room)
+    data["indoor"] = round(room.temperature, 1)
+    data["outdoor"] = round(state.outdoor.temperature, 1)
+    if delta_t is not None:
+        data["delta_t"] = round(abs(delta_t), 1)
+        if abs(delta_t) <= ctx.preferences.delta_t_hysteresis * 3:
+            return "idle_balanced", data
+    return "nothing_to_do", data
 
 
 def determine_global_state(ctx: EvaluationContext, active: Iterable[Recommendation]) -> GlobalState:

@@ -502,12 +502,21 @@ class WindowState:
     cover_position: int | None = None
     cover_external: bool = True
     cover_auto_allowed: bool = False
+    #: A blind that exists but that Home Assistant cannot see or move. It still
+    #: shapes every shading recommendation - it just gets operated by hand.
+    manual_cover: bool = False
     horizon_profile: tuple[float, ...] | None = None
     solar_load_w: float | None = None
 
     @property
     def has_cover(self) -> bool:
-        return self.cover_entity is not None
+        """Whether anything can shade this window, motorised or not."""
+        return self.cover_entity is not None or self.manual_cover
+
+    @property
+    def cover_is_manual(self) -> bool:
+        """A blind we can only ever advise about, never move."""
+        return self.cover_entity is None and self.manual_cover
 
     @property
     def cover_shading_efficiency(self) -> float:

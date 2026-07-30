@@ -74,13 +74,27 @@ class NotificationManager:
             return
 
         now = result.now
+        memory = self.coordinator.memory
+
+        # "May still be pushed" and "is still relevant" are two different
+        # questions, and conflating them retracted every notification seconds
+        # after it arrived: sending one sets its cooldown, the cooldown clears
+        # rec.notify on the next evaluation, and the next evaluation is only a
+        # sensor update away. Relevance is about the recommendation still
+        # existing, not about whether we are allowed to send it again.
+        relevant_ids = {
+            rec.id
+            for rec in result.recommendations
+            if rec.action is not Action.NO_ACTION
+            and not memory.is_snoozed(rec.id, now)
+            and not memory.is_ignored_today(rec.id, now)
+        }
         pushable = [rec for rec in result.recommendations if rec.notify]
-        active_ids = {rec.id for rec in pushable}
 
         # Withdraw anything that no longer applies - a notification telling you
         # to close a window you already closed is worse than none at all.
         for rec_id in list(self._sent):
-            if rec_id not in active_ids:
+            if rec_id not in relevant_ids:
                 await self.async_clear(rec_id)
 
         if not targets:

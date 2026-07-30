@@ -62,6 +62,76 @@ CONF_FLOOR: Final = "floor"
 CONF_TOP_FLOOR: Final = "top_floor"
 CONF_F_RT: Final = "f_rt"
 
+CONF_PROFILE: Final = "profile"
+
+#: Presets for the "how chatty and how twitchy" knobs. The normal way to tune
+#: this should be picking one word, not balancing six sliders and hoping.
+#: Individual settings still override the profile, so nothing is taken away -
+#: but there is always a one-click way back to somewhere sane.
+PROFILE_QUIET: Final = "quiet"
+PROFILE_BALANCED: Final = "balanced"
+PROFILE_EAGER: Final = "eager"
+PROFILE_OPTIONS: Final = [PROFILE_QUIET, PROFILE_BALANCED, PROFILE_EAGER]
+
+PROFILES: Final[dict[str, dict[str, float]]] = {
+    PROFILE_QUIET: {
+        "notification_restraint": 80,
+        "max_pushes_per_day": 3,
+        "min_state_duration_minutes": 30,
+        "cooldown_minutes": 120,
+        "min_confidence_for_push": 0.8,
+        "delta_t_hysteresis": 0.8,
+    },
+    PROFILE_BALANCED: {},
+    PROFILE_EAGER: {
+        "notification_restraint": 20,
+        "max_pushes_per_day": 12,
+        "min_state_duration_minutes": 10,
+        "cooldown_minutes": 30,
+        "min_confidence_for_push": 0.6,
+        "delta_t_hysteresis": 0.4,
+    },
+}
+
+#: The keys a profile governs. Choosing a profile clears these, so the choice
+#: takes effect instead of losing silently to a forgotten override.
+PROFILE_KEYS: Final = (
+    "notification_restraint",
+    "max_pushes_per_day",
+    "min_state_duration_minutes",
+    "cooldown_minutes",
+    "min_confidence_for_push",
+    "delta_t_hysteresis",
+)
+
+#: Everything "reset to defaults" clears. Deliberately excludes data sources,
+#: the building profile and the notification targets: resetting the tuning must
+#: never disconnect the integration from your sensors.
+TUNABLE_KEYS: Final = (
+    *PROFILE_KEYS,
+    "weight_temperature",
+    "weight_humidity",
+    "weight_co2",
+    "weight_particulate",
+    "summer_target_min",
+    "summer_target_max",
+    "winter_target_min",
+    "winter_target_max",
+    "humidity_target_min",
+    "humidity_target_max",
+    "co2_threshold",
+    "co2_urgent",
+    "voc_threshold",
+    "pm25_indoor_threshold",
+    "pm25_outdoor_threshold",
+    "storm_wind_kmh",
+    "tropical_night_threshold",
+    "heatwave_threshold",
+    "close_lead_time_minutes",
+    "quiet_hours_start",
+    "quiet_hours_end",
+)
+
 CONF_MODE: Final = "mode"
 CONF_ACTIONABLE_NOTIFICATIONS: Final = "actionable_notifications"
 CONF_COVER_AUTOMATION: Final = "cover_automation"
@@ -150,6 +220,9 @@ CONF_GROUND_FLOOR: Final = "is_ground_floor"
 CONF_OK_WHEN_AWAY: Final = "ok_when_away"
 CONF_RAIN_SAFE: Final = "rain_safe"
 CONF_HORIZON: Final = "horizon_profile"
+CONF_MANUAL_COVER: Final = "manual_cover"
+CONF_SUN_FROM: Final = "sun_from"
+CONF_SUN_UNTIL: Final = "sun_until"
 
 # --------------------------------------------------------------------------
 # Defaults

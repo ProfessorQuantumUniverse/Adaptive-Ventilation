@@ -67,6 +67,14 @@ class Calibrator:
         self.hass = hass
         self.coordinator = coordinator
         self._last_run: datetime | None = None
+        #: Why the last run produced nothing, so the panel can say so instead
+        #: of showing an empty box with no explanation at all.
+        self.last_status: str = "never_run"
+
+    @property
+    def last_run(self) -> datetime | None:
+        """When the calibration last looked at the history."""
+        return self._last_run
 
     async def async_run(self, *, force: bool = False) -> dict[str, Any]:
         """Evaluate the recorder history and merge the results."""
@@ -78,9 +86,13 @@ class Calibrator:
             history = await self._async_history(now)
         except Exception as err:
             _LOGGER.info("calibration skipped, no usable history: %s", err)
+            self.last_status = "no_recorder"
+            self._last_run = now
             return {"skipped": str(err)}
 
         if not history:
+            self.last_status = "no_history"
+            self._last_run = now
             return {"skipped": "no history"}
 
         self._last_run = now
@@ -127,6 +139,7 @@ class Calibrator:
             self.coordinator.learned = replace(self.coordinator.learned, rooms=rooms)
             updated[room.id] = {k: round(v, 3) for k, v in clean.items()}
 
+        self.last_status = "ok" if updated else "not_enough_data"
         if updated:
             await self.coordinator.async_persist()
             self.hass.bus.async_fire(EVENT_CALIBRATION_UPDATED, {"rooms": updated})

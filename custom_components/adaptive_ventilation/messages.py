@@ -303,6 +303,10 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "en": "Sun reaches {window} in {minutes} min - shade it before it arrives.",
         "de": "In {minutes} min trifft die Sonne {window} - vorher verschatten.",
     },
+    "shading_release": {
+        "en": "The sun has left {window} - you can open the blind again.",
+        "de": "Die Sonne ist von {window} weg - der Rollladen kann wieder hoch.",
+    },
     "shading_gap": {
         "en": (
             "{window} takes {load_w} W with no shading at all - about {daily_k} K a day. "
@@ -329,6 +333,38 @@ TEMPLATES: dict[str, dict[str, str]] = {
     "nothing_to_do": {
         "en": "Nothing to do.",
         "de": "Nichts zu tun.",
+    },
+    "idle_balanced": {
+        "en": (
+            "Nothing to gain: {indoor} °C inside against {outdoor} °C outside, "
+            "only {delta_t} K apart."
+        ),
+        "de": (
+            "Nichts zu holen: drinnen {indoor} °C, draußen {outdoor} °C, "
+            "nur {delta_t} K Unterschied."
+        ),
+    },
+    "idle_no_room_data": {
+        "en": (
+            "No indoor temperature for {room}, so there is nothing to compare "
+            "against. Add a sensor, or set a reference room in the room settings."
+        ),
+        "de": (
+            "Keine Innentemperatur für {room} - damit fehlt der Vergleichswert. "
+            "Sensor ergänzen oder in den Raum-Einstellungen einen Referenzraum wählen."
+        ),
+    },
+    "idle_stale": {
+        "en": "Outdoor data is stale, so no recommendation is being made.",
+        "de": "Die Außendaten sind veraltet, deshalb gibt es gerade keine Empfehlung.",
+    },
+    "idle_away": {
+        "en": "Nobody home.",
+        "de": "Niemand zu Hause.",
+    },
+    "idle_off": {
+        "en": "Switched off.",
+        "de": "Ausgeschaltet.",
     },
 }
 

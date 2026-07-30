@@ -298,6 +298,7 @@ def panel_payload(coordinator: Any) -> dict[str, Any]:
         "weak_spots": weak_spots(coordinator, result),
         "sensor_suggestions": sensor_suggestions(coordinator, result),
         "learned": summarise_learned(coordinator.learned),
+        "calibration": _calibration_meta(coordinator),
         "preferences": _preferences_payload(coordinator),
         "diagnostics": {
             "season": result.diagnostics.get("season"),
@@ -305,6 +306,21 @@ def panel_payload(coordinator: Any) -> dict[str, Any]:
             "cross_pairs": result.diagnostics.get("cross_pairs", []),
             "rule_errors": result.diagnostics.get("rule_errors", {}),
         },
+    }
+
+
+def _calibration_meta(coordinator: Any) -> dict[str, Any]:
+    """State of the self-calibration, so an empty table can explain itself."""
+    calibrator = getattr(coordinator, "_calibrator", None)
+    learned = coordinator.learned.rooms
+    return {
+        "status": getattr(calibrator, "last_status", "never_run"),
+        "last_run": _iso(getattr(calibrator, "last_run", None)),
+        "rooms_learned": sum(1 for room in learned.values() if room.samples > 0),
+        "rooms_in_use": sum(1 for room in learned.values() if room.samples >= 3),
+        "rooms_total": len(coordinator.config.rooms),
+        "min_samples": 3,
+        "history_days": 7,
     }
 
 
@@ -414,7 +430,15 @@ def _preferences_payload(coordinator: Any) -> dict[str, Any]:
     if world is None:
         return {}
     prefs = world.preferences
+    defaults = type(prefs)()
+    changed = [
+        name
+        for name in type(prefs).__dataclass_fields__
+        if getattr(prefs, name) != getattr(defaults, name)
+    ]
     return {
+        "profile": coordinator.config.options.get("profile", "balanced"),
+        "changed_from_default": changed,
         "weight_temperature": prefs.weight_temperature,
         "weight_humidity": prefs.weight_humidity,
         "weight_co2": prefs.weight_co2,

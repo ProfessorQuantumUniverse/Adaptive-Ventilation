@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import types
 from typing import Any
 
 import pytest
@@ -489,3 +490,190 @@ def test_unitless_number_selector_is_accepted() -> None:
 
     with_unit = vol.Schema({vol.Optional("v", default=1.0): cf._number(0, 10, 1, "m³")})
     assert with_unit({"v": 2.0}) == {"v": 2.0}
+
+
+# --------------------------------------------------------------------------
+# Notification delivery
+# --------------------------------------------------------------------------
+
+
+class _FakeNotifyHass:
+    """Just enough hass for the notification manager."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.config = types.SimpleNamespace(language="en")
+        self.bus = types.SimpleNamespace(async_listen=lambda *a, **kw: None)
+        self.services = types.SimpleNamespace(async_call=self._call)
+
+    async def _call(self, domain: str, service: str, payload: dict, **kwargs: Any) -> None:
+        self.calls.append((service, payload))
+
+
+class _FakeCoordinator:
+    def __init__(self, world: WorldState, memory: EngineMemory) -> None:
+        self.world = world
+        self.memory = memory
+        self.config = types.SimpleNamespace(
+            options={"notify_targets": ["notify.phone"], "cooldown_minutes": 60}
+        )
+
+    async def async_acknowledge(self, recommendation_id: str) -> None:
+        pass
+
+    async def async_snooze(self, recommendation_id: str | None, scope: str) -> None:
+        pass
+
+
+def _notify_world(outdoor: float = 14.0) -> WorldState:
+    # A warm day ahead, otherwise the season resolves to winter and the summer
+    # rules that actually push never run.
+    day = [outdoor, outdoor, outdoor + 2, 20.0, 25.0, 29.0, 31.0, 29.0, 24.0, 19.0, 16.0, outdoor]
+    return WorldState(
+        now=NOW,
+        outdoor=OutdoorState.create(outdoor, 60.0, pressure=1013.0),
+        rooms=(RoomState.create("living", "Living room", 26.5, 50.0, volume_m3=60.0, priority=1),),
+        windows=(WindowState(id="w1", name="South", room_id="living", azimuth=190.0, area_m2=2.2),),
+        forecast=make_forecast(NOW, day * 3, 60.0),
+        sun=SunState(azimuth=300.0, elevation=-10.0),
+    )
+
+
+def test_a_pushed_notification_is_not_retracted_on_the_next_evaluation() -> None:
+    """Sending sets a cooldown, which clears rec.notify - that must not withdraw it."""
+    import asyncio
+
+    from adaptive_ventilation.notify_manager import NotificationManager
+
+    memory = EngineMemory()
+    world = _notify_world()
+    hass = _FakeNotifyHass()
+    manager = NotificationManager(hass, _FakeCoordinator(world, memory))  # type: ignore[arg-type]
+
+    first = evaluate(world, memory)
+    assert any(rec.notify for rec in first.recommendations), "nothing would be pushed at all"
+    asyncio.run(manager.async_process(first))
+    sent = [service for service, payload in hass.calls if payload.get("title")]
+    assert sent, "no notification was sent"
+
+    # Two seconds later a sensor updates and the engine runs again. The cooldown
+    # now suppresses re-sending, but the advice is unchanged and must stay.
+    hass.calls.clear()
+    later = world.with_overrides(now=NOW + timedelta(seconds=2))
+    manager.coordinator.world = later  # type: ignore[attr-defined]
+    asyncio.run(manager.async_process(evaluate(later, memory)))
+
+    cleared = [p for _s, p in hass.calls if p.get("message") == "clear_notification"]
+    assert not cleared, "the notification was withdrawn seconds after it arrived"
+    assert manager._sent, "the manager forgot it had sent anything"
+
+
+def test_a_notification_is_withdrawn_once_the_advice_is_gone() -> None:
+    import asyncio
+
+    from adaptive_ventilation.notify_manager import NotificationManager
+
+    memory = EngineMemory()
+    world = _notify_world()
+    hass = _FakeNotifyHass()
+    coordinator = _FakeCoordinator(world, memory)
+    manager = NotificationManager(hass, coordinator)  # type: ignore[arg-type]
+    asyncio.run(manager.async_process(evaluate(world, memory)))
+    assert manager._sent
+
+    # It is now warmer outside than inside, so the night flush is over.
+    hass.calls.clear()
+    hot = _notify_world(outdoor=32.0).with_overrides(now=NOW + timedelta(hours=2))
+    coordinator.world = hot
+    asyncio.run(manager.async_process(evaluate(hot, memory)))
+
+    cleared = [p for _s, p in hass.calls if p.get("message") == "clear_notification"]
+    assert cleared, "obsolete advice was left on the lock screen"
+    assert not manager._sent
+
+
+def test_snoozing_withdraws_the_notification() -> None:
+    import asyncio
+
+    from adaptive_ventilation.notify_manager import NotificationManager
+
+    memory = EngineMemory()
+    world = _notify_world()
+    hass = _FakeNotifyHass()
+    manager = NotificationManager(hass, _FakeCoordinator(world, memory))  # type: ignore[arg-type]
+    result = evaluate(world, memory)
+    asyncio.run(manager.async_process(result))
+    pushed = next(rec for rec in result.recommendations if rec.notify)
+
+    hass.calls.clear()
+    memory.snooze(pushed.id, NOW + timedelta(hours=1))
+    asyncio.run(manager.async_process(evaluate(world, memory)))
+
+    assert [p for _s, p in hass.calls if p.get("message") == "clear_notification"]
+
+
+def test_a_profile_sets_the_calmness_knobs_in_one_step() -> None:
+    from adaptive_ventilation.models import build_preferences
+
+    quiet = build_preferences({"profile": "quiet"})
+    eager = build_preferences({"profile": "eager"})
+    default = build_preferences({})
+
+    assert quiet.max_pushes_per_day < default.max_pushes_per_day < eager.max_pushes_per_day
+    assert quiet.min_state_duration_minutes > eager.min_state_duration_minutes
+    assert quiet.notification_restraint > eager.notification_restraint
+
+
+def test_an_explicit_setting_still_beats_the_profile() -> None:
+    """The profile is a starting point, not a cage."""
+    from adaptive_ventilation.models import build_preferences
+
+    prefs = build_preferences({"profile": "quiet", "max_pushes_per_day": 9})
+    assert prefs.max_pushes_per_day == 9
+    assert prefs.notification_restraint == 80  # still from the profile
+
+
+def test_an_inverted_comfort_band_is_repaired_not_obeyed() -> None:
+    from adaptive_ventilation.models import build_preferences
+
+    prefs = build_preferences({"summer_target_min": 28, "summer_target_max": 22})
+    assert prefs.summer_target_min == 22
+    assert prefs.summer_target_max == 28
+
+
+def test_resetting_the_tuning_keeps_the_sensors() -> None:
+    """Reset undoes tuning; it must not disconnect the integration."""
+    from adaptive_ventilation.const import CONF_PROFILE, TUNABLE_KEYS
+
+    options = {
+        "outdoor_temperature_sensor": "sensor.outside",
+        "weather_entity": "weather.home",
+        "notify_targets": ["notify.phone"],
+        "building_type": "old_massive",
+        CONF_PROFILE: "eager",
+        "co2_threshold": 700,
+        "summer_target_max": 24,
+    }
+    kept = {k: v for k, v in options.items() if k not in TUNABLE_KEYS and k != CONF_PROFILE}
+
+    assert "outdoor_temperature_sensor" in kept
+    assert "weather_entity" in kept
+    assert "notify_targets" in kept
+    assert "building_type" in kept
+    assert "co2_threshold" not in kept
+    assert "summer_target_max" not in kept
+    assert CONF_PROFILE not in kept
+
+
+def test_cloud_cover_falls_back_to_forecast_then_condition() -> None:
+    """Several weather integrations only report cloud cover in the forecast."""
+    from adaptive_ventilation.engine.state import ForecastHour
+    from adaptive_ventilation.models import _cloud_coverage
+
+    forecast = ForecastHour(time=NOW, temperature=20.0, cloud_coverage=75.0)
+
+    assert _cloud_coverage({"cloud_coverage": 30.0}, forecast) == 30.0
+    assert _cloud_coverage({}, forecast) == 75.0
+    assert _cloud_coverage({"condition": "cloudy"}, None) == 90.0
+    assert _cloud_coverage({"condition": "sunny"}, None) == 0.0
+    assert _cloud_coverage({}, None) is None

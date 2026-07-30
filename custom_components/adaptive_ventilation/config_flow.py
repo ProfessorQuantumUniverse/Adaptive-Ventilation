@@ -71,6 +71,7 @@ from .const import (
     CONF_IS_MOISTURE_SOURCE,
     CONF_IS_TOP_FLOOR,
     CONF_IS_UNHEATED,
+    CONF_MANUAL_COVER,
     CONF_MAX_PUSHES,
     CONF_MIN_CONFIDENCE,
     CONF_MIN_STATE_DURATION,
@@ -88,6 +89,7 @@ from .const import (
     CONF_POWER_SENSOR,
     CONF_PRESENCE_ENTITY,
     CONF_PRIORITY,
+    CONF_PROFILE,
     CONF_QUIET_END,
     CONF_QUIET_START,
     CONF_RAIN_SAFE,
@@ -100,6 +102,8 @@ from .const import (
     CONF_SUMMER_MAX,
     CONF_SUMMER_MIN,
     CONF_SUN_ENTITY,
+    CONF_SUN_FROM,
+    CONF_SUN_UNTIL,
     CONF_TARGET_MAX,
     CONF_TARGET_MIN,
     CONF_TEMPERATURE_SENSOR,
@@ -128,8 +132,12 @@ from .const import (
     ESTIMATION_NONE,
     ESTIMATION_OPTIONS,
     NAME,
+    PROFILE_BALANCED,
+    PROFILE_KEYS,
+    PROFILE_OPTIONS,
     SUBENTRY_ROOM,
     SUBENTRY_WINDOW,
+    TUNABLE_KEYS,
 )
 from .engine.state import BuildingType, Preferences
 
@@ -521,6 +529,18 @@ class WindowSubentryFlow(ConfigSubentryFlow):
                                 CONF_COVER_AUTO, default=current.get(CONF_COVER_AUTO, False)
                             ): BooleanSelector(),
                             vol.Optional(
+                                CONF_MANUAL_COVER,
+                                default=current.get(CONF_MANUAL_COVER, False),
+                            ): BooleanSelector(),
+                            vol.Optional(
+                                CONF_SUN_FROM,
+                                description={"suggested_value": current.get(CONF_SUN_FROM)},
+                            ): TimeSelector(),
+                            vol.Optional(
+                                CONF_SUN_UNTIL,
+                                description={"suggested_value": current.get(CONF_SUN_UNTIL)},
+                            ): TimeSelector(),
+                            vol.Optional(
                                 CONF_GROUND_FLOOR,
                                 default=current.get(CONF_GROUND_FLOOR, False),
                             ): BooleanSelector(),
@@ -550,7 +570,59 @@ class AdaptiveVentilationOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["sources", "building", "notifications", "weights", "thresholds"],
+            menu_options=[
+                "profile",
+                "sources",
+                "building",
+                "notifications",
+                "weights",
+                "thresholds",
+                "reset",
+            ],
+        )
+
+    async def async_step_profile(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """One dropdown that sets how chatty and how twitchy the system is."""
+        if user_input is not None:
+            options = dict(self.config_entry.options)
+            options[CONF_PROFILE] = user_input[CONF_PROFILE]
+            # Clear the knobs the profile governs, otherwise a forgotten
+            # override silently wins and the choice appears to do nothing.
+            for key in PROFILE_KEYS:
+                options.pop(key, None)
+            return self.async_create_entry(title="", data=options)
+
+        return self.async_show_form(
+            step_id="profile",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_PROFILE,
+                        default=self.config_entry.options.get(CONF_PROFILE, PROFILE_BALANCED),
+                    ): _select(PROFILE_OPTIONS, "profile"),
+                }
+            ),
+        )
+
+    async def async_step_reset(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Put every threshold and weight back to its default.
+
+        Sensors, the weather entity, the building and the notification targets
+        are deliberately untouched: this undoes tuning, it does not undo setup.
+        """
+        if user_input is not None:
+            options = dict(self.config_entry.options)
+            if user_input.get("confirm"):
+                for key in TUNABLE_KEYS:
+                    options.pop(key, None)
+                options.pop(CONF_PROFILE, None)
+            return self.async_create_entry(title="", data=options)
+
+        return self.async_show_form(
+            step_id="reset",
+            data_schema=vol.Schema({vol.Required("confirm", default=False): BooleanSelector()}),
         )
 
     async def async_step_sources(
@@ -869,6 +941,8 @@ def _validate_window(data: dict[str, Any]) -> dict[str, str]:
         errors[CONF_CONTACT_SENSOR] = "required"
     if data.get(CONF_COVER_AUTO) and not data.get(CONF_COVER_ENTITY):
         errors["base"] = "cover_required"
+    if data.get(CONF_MANUAL_COVER) and data.get(CONF_COVER_ENTITY):
+        errors["base"] = "cover_conflict"
     return errors
 
 

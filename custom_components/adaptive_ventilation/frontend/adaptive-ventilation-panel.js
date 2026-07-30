@@ -107,6 +107,24 @@ const TEXT = {
     apply: "Apply",
     outdoorStale: "Outdoor data is stale",
     avoidable: "avoidable",
+    profile: "Profile",
+    profileHint:
+      "Sets how chatty and how twitchy the system is. Individual values below still win.",
+    profileQuiet: "Quiet",
+    profileBalanced: "Balanced",
+    profileEager: "Maximum optimisation",
+    resetAll: "Reset all tuning",
+    resetHint: "Sensors, weather and notification targets are not touched.",
+    changed: "values differ from the default",
+    calibNever: "The self-calibration has not run yet.",
+    calibNoRecorder: "No recorder history available, so nothing can be learned.",
+    calibNoHistory: "No usable history yet.",
+    calibNotEnough:
+      "Not enough usable episodes yet. Each value needs at least {min} before it replaces the building default.",
+    calibLastRun: "Last run",
+    calibRooms: "{learned} of {total} rooms have data, {inUse} in use",
+    recommendations: "recommendations",
+    working: "Working…",
   },
   de: {
     now: "Jetzt",
@@ -164,6 +182,24 @@ const TEXT = {
     apply: "Übernehmen",
     outdoorStale: "Außendaten sind veraltet",
     avoidable: "vermeidbar",
+    profile: "Profil",
+    profileHint:
+      "Legt fest, wie gesprächig und wie nervös das System ist. Einzelne Werte unten haben trotzdem Vorrang.",
+    profileQuiet: "Ruhig",
+    profileBalanced: "Ausgewogen",
+    profileEager: "Maximal optimiert",
+    resetAll: "Alle Tuning-Werte zurücksetzen",
+    resetHint: "Sensoren, Wetter und Benachrichtigungsziele bleiben unangetastet.",
+    changed: "Werte weichen vom Standard ab",
+    calibNever: "Die Selbstkalibrierung ist noch nicht gelaufen.",
+    calibNoRecorder: "Keine Recorder-Historie verfügbar, es kann nichts gelernt werden.",
+    calibNoHistory: "Noch keine brauchbare Historie.",
+    calibNotEnough:
+      "Noch zu wenige brauchbare Episoden. Jeder Wert braucht mindestens {min}, bevor er den Gebäude-Startwert ersetzt.",
+    calibLastRun: "Letzter Lauf",
+    calibRooms: "{learned} von {total} Räumen haben Daten, {inUse} im Einsatz",
+    recommendations: "Empfehlungen",
+    working: "Arbeitet…",
   },
 };
 
@@ -246,6 +282,8 @@ class AdaptiveVentilationPanel extends HTMLElement {
     this._expandedRoom = null;
     this._pendingPreferences = {};
     this._preview = null;
+    this._previewError = null;
+    this._previewPending = false;
     this._lastFetch = 0;
     this._timer = null;
   }
@@ -298,19 +336,18 @@ class AdaptiveVentilationPanel extends HTMLElement {
   }
 
   async _requestPreview() {
-    if (!this._hass || !Object.keys(this._pendingPreferences).length) {
-      this._preview = null;
-      this._render();
-      return;
-    }
+    if (!this._hass) return;
     try {
       this._preview = await this._hass.callWS({
         type: `${DOMAIN}/preview`,
         preferences: this._pendingPreferences,
       });
+      this._previewError = null;
     } catch (err) {
       this._preview = null;
+      this._previewError = String(err && err.message ? err.message : err);
     }
+    this._previewPending = false;
     this._render();
   }
 
@@ -358,6 +395,12 @@ class AdaptiveVentilationPanel extends HTMLElement {
   }
 
   _renderTab() {
+    // The preview box used to stay empty until a slider moved, which made
+    // the whole tab look broken. Fetch it once with the current values.
+    if (this._tab === "tuning" && !this._preview && !this._previewPending) {
+      this._previewPending = true;
+      this._requestPreview();
+    }
     switch (this._tab) {
       case "rooms":
         return this._renderRooms();
@@ -549,7 +592,9 @@ class AdaptiveVentilationPanel extends HTMLElement {
       ${windows
         .map((w) => {
           const rec = w.recommendation || {};
-          const buttons = rec.recommendation_id
+          // No "Done"/"Snooze" on a row whose advice is "nothing to do" -
+          // there is nothing to acknowledge and it just adds noise.
+          const buttons = rec.recommendation_id && w.action !== "no_action"
             ? `<button class="action" data-ack="${escapeAttr(rec.recommendation_id)}">${t.done}</button>
                <button class="action" data-snooze="${escapeAttr(rec.recommendation_id)}">${t.snooze}</button>
                <button class="action" data-ignore="${escapeAttr(rec.recommendation_id)}">${t.ignore}</button>`
@@ -686,16 +731,51 @@ class AdaptiveVentilationPanel extends HTMLElement {
         <span class="num">${prefs[key]}${unit || ""}</span>
       </div>`;
 
-    const preview = this._preview
-      ? `<p><strong>${this._preview.proposed.notifications} ${t.notifications}</strong>
-           ${t.instead} ${this._preview.current.notifications} ·
-           ${this._preview.proposed.recommendations} / ${this._preview.current.recommendations}
-           ${t.rooms.toLowerCase()}</p>
-         <p class="reason">${escapeHtml(this._preview.proposed.rules.join(", ") || "–")}</p>`
-      : `<p class="empty">${t.previewHint}</p>`;
+    const dirty = Object.keys(this._pendingPreferences).length > 0;
+    let preview;
+    if (this._preview) {
+      const now = this._preview.current;
+      const next = this._preview.proposed;
+      const shown = dirty ? next : now;
+      const delta = dirty
+        ? `<span class="muted">${t.instead} ${now.notifications}</span>`
+        : "";
+      preview = `
+        <p><strong>${shown.notifications} ${t.notifications}</strong> ${delta}</p>
+        <p>${shown.recommendations} ${t.recommendations}</p>
+        <p class="reason">${escapeHtml(shown.rules.join(", ") || "-")}</p>
+        <p class="reason">${t.previewHint}</p>`;
+    } else if (this._previewError) {
+      preview = `<p class="empty">${escapeHtml(this._previewError)}</p>`;
+    } else {
+      preview = `<p class="empty">${t.working}</p>`;
+    }
 
     return `<div class="grid2">
       <div>
+        <div class="card">
+          <h2>${t.profile}</h2>
+          <p class="sub">${t.profileHint}</p>
+          <select id="profile-select">
+            ${[
+              ["quiet", t.profileQuiet],
+              ["balanced", t.profileBalanced],
+              ["eager", t.profileEager],
+            ]
+              .map(
+                ([id, label]) =>
+                  `<option value="${id}" ${
+                    (this._data.preferences || {}).profile === id ? "selected" : ""
+                  }>${label}</option>`
+              )
+              .join("")}
+          </select>
+          <p class="reason" style="margin-top:10px">
+            ${((this._data.preferences || {}).changed_from_default || []).length} ${t.changed}
+          </p>
+          <button class="action" id="reset-all">${t.resetAll}</button>
+          <p class="reason">${t.resetHint}</p>
+        </div>
         <div class="card">
           <h2>${t.weights}</h2>
           ${slider("weight_temperature", "Temperatur", 0, 100, 5, "")}
@@ -738,9 +818,32 @@ class AdaptiveVentilationPanel extends HTMLElement {
   _renderLearned() {
     const t = this.t;
     const learned = this._data.learned || {};
+    const meta = this._data.calibration || {};
     const rooms = this._data.rooms || [];
     const entries = Object.entries(learned);
-    if (!entries.length) return `<p class="empty">–</p>`;
+
+    const footer = `<p class="reason">${
+      meta.last_run ? `${t.calibLastRun}: ${formatTime(meta.last_run, this._data.language)}` : ""
+    }${
+      meta.rooms_total
+        ? ` · ${t.calibRooms
+            .replace("{learned}", meta.rooms_learned ?? 0)
+            .replace("{total}", meta.rooms_total)
+            .replace("{inUse}", meta.rooms_in_use ?? 0)}`
+        : ""
+    }</p>`;
+
+    if (!entries.length) {
+      const why =
+        {
+          never_run: t.calibNever,
+          no_recorder: t.calibNoRecorder,
+          no_history: t.calibNoHistory,
+          not_enough_data: t.calibNotEnough.replace("{min}", meta.min_samples ?? 3),
+          ok: t.calibNotEnough.replace("{min}", meta.min_samples ?? 3),
+        }[meta.status || "never_run"] || t.calibNever;
+      return `<p class="empty">${escapeHtml(why)}</p>${footer}`;
+    }
 
     return `<table><thead><tr>
         <th>${t.room}</th><th class="num">τ</th><th class="num">K/h</th>
@@ -760,7 +863,7 @@ class AdaptiveVentilationPanel extends HTMLElement {
           </tr>`;
         })
         .join("")}
-      </tbody></table>`;
+      </tbody></table>${footer}`;
   }
 
   // -- Tab 4: Balance ------------------------------------------------
@@ -919,12 +1022,35 @@ class AdaptiveVentilationPanel extends HTMLElement {
         for (const [option, value] of Object.entries(pending)) {
           await this._act({ action: "set_option", option, value });
         }
+        this._previewPending = true;
+        await this._requestPreview();
+      });
+    }
+
+    const profileSelect = root.getElementById("profile-select");
+    if (profileSelect) {
+      profileSelect.addEventListener("change", (event) =>
+        this._act({ action: "set_profile", value: event.target.value })
+      );
+    }
+
+    const resetAll = root.getElementById("reset-all");
+    if (resetAll) {
+      resetAll.addEventListener("click", async () => {
+        this._pendingPreferences = {};
+        this._preview = null;
+        this._previewPending = true;
+        await this._act({ action: "reset_tuning" });
       });
     }
 
     const recalibrate = root.getElementById("recalibrate");
     if (recalibrate) {
-      recalibrate.addEventListener("click", () => this._act({ action: "recalibrate" }));
+      recalibrate.addEventListener("click", async () => {
+        recalibrate.textContent = this.t.working;
+        recalibrate.disabled = true;
+        await this._act({ action: "recalibrate" });
+      });
     }
   }
 }

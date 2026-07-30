@@ -14,6 +14,7 @@ glass has already let the energy in.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 import math
 from typing import Final
@@ -256,6 +257,7 @@ def next_sun_hit(
     threshold_w: float = 150.0,
     hours: int = 14,
     step_minutes: int = 10,
+    cloud_at: Callable[[datetime], float | None] | None = None,
 ) -> datetime | None:
     """First moment within ``hours`` at which the window exceeds ``threshold_w``.
 
@@ -266,7 +268,10 @@ def next_sun_hit(
     for i in range(steps + 1):
         moment = reference + timedelta(minutes=i * step_minutes)
         elevation, azimuth = sun_position(moment, latitude, longitude)
-        if solar_load(window, elevation, azimuth, None, apply_cover=False) >= threshold_w:
+        # Without the forecast cloud cover this promises sunshine at 15:00 on a
+        # day that is forecast solid grey, and the shading advice follows it.
+        cloud = cloud_at(moment) if cloud_at is not None else None
+        if solar_load(window, elevation, azimuth, cloud, apply_cover=False) >= threshold_w:
             return moment
     return None
 

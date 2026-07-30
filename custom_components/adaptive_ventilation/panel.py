@@ -18,11 +18,14 @@ from homeassistant.core import HomeAssistant, callback
 import voluptuous as vol
 
 from .const import (
+    CONF_PROFILE,
     DOMAIN,
     PANEL_FILENAME,
     PANEL_ICON,
     PANEL_TITLE,
     PANEL_URL,
+    PROFILE_KEYS,
+    TUNABLE_KEYS,
 )
 from .engine.state import Mode
 from .presentation import panel_payload
@@ -131,6 +134,8 @@ async def ws_panel_data(
                 "purge",
                 "set_mode",
                 "set_option",
+                "set_profile",
+                "reset_tuning",
                 "override",
                 "recalibrate",
             ]
@@ -178,6 +183,21 @@ async def ws_action(
                 msg.get("value"),
                 bool(msg.get("reset", False)),
             )
+        elif action == "set_profile":
+            options = dict(coordinator.config_entry.options)
+            options[CONF_PROFILE] = msg["value"]
+            # Clear what the profile governs, so the choice actually applies
+            # instead of losing to a forgotten individual override.
+            for key in PROFILE_KEYS:
+                options.pop(key, None)
+            hass.config_entries.async_update_entry(coordinator.config_entry, options=options)
+        elif action == "reset_tuning":
+            options = {
+                key: value
+                for key, value in coordinator.config_entry.options.items()
+                if key not in TUNABLE_KEYS and key != CONF_PROFILE
+            }
+            hass.config_entries.async_update_entry(coordinator.config_entry, options=options)
         elif action == "recalibrate":
             await coordinator.async_recalibrate()
     except Exception as err:

@@ -7,7 +7,7 @@ contradictory advice, a safety rule losing, and the system oscillating at
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 import itertools
 from itertools import pairwise
 import random
@@ -474,3 +474,100 @@ def test_disabled_rules_are_actually_skipped() -> None:
     # Everything else keeps working.
     assert disabled.diagnostics["rule_errors"] == {}
     assert len(disabled.recommendations) >= 1
+
+
+# --------------------------------------------------------------------------
+# Manual blinds and the shading horizon
+# --------------------------------------------------------------------------
+
+
+def test_a_blind_without_an_entity_still_gets_shading_advice() -> None:
+    """Plenty of flats have blinds Home Assistant cannot see or move."""
+    from adaptive_ventilation.engine.state import COVER_ACTIONS
+
+    noon = NOW.replace(hour=11, minute=0)
+    hot = tuple(
+        ForecastHour(time=noon + timedelta(hours=i), temperature=31.0, humidity=40.0)
+        for i in range(30)
+    )
+    windows = (
+        WindowState(
+            id="w1",
+            name="South",
+            room_id="living_room",
+            azimuth=180.0,
+            area_m2=2.5,
+            manual_cover=True,
+            cover_external=True,
+        ),
+    )
+    state = _world(
+        now=noon,
+        outdoor=OutdoorState.create(31.0, 40.0, cloud_coverage=0.0),
+        rooms=(RoomState.create("living_room", "Living room", 27.0, 45.0, volume_m3=60.0),),
+        windows=windows,
+        forecast=hot,
+        sun=SunState(azimuth=180.0, elevation=55.0),
+    )
+    result = evaluate(state, EngineMemory())
+    cover = next((r for r in result.recommendations if r.target == "w1:cover"), None)
+    assert cover is not None, "a manual blind got no shading advice at all"
+    assert cover.action in COVER_ACTIONS
+    # Nothing can move it, so the advice has to reach the user.
+    assert cover.notify
+
+
+def test_a_manual_blind_is_never_driven_automatically() -> None:
+    """cover_auto_allowed without an entity would be a promise we cannot keep."""
+    from adaptive_ventilation.models import WindowConfig
+
+    config = WindowConfig.from_subentry(
+        "w1",
+        {"name": "South", "room": "r", "manual_cover": True, "cover_auto_allowed": True},
+    )
+    assert config.manual_cover
+    # build_windows drops the automation flag when there is no entity to drive.
+    from types import SimpleNamespace
+
+    from adaptive_ventilation.models import build_windows
+
+    hass = SimpleNamespace(
+        states=SimpleNamespace(get=lambda _e: None),
+        config=SimpleNamespace(latitude=50.1, longitude=8.7),
+    )
+    window = build_windows(hass, [config])[0]
+    assert window.has_cover
+    assert window.cover_is_manual
+    assert not window.cover_auto_allowed
+
+
+def test_the_shading_horizon_blocks_the_sun_before_it_arrives() -> None:
+    """A south window behind a taller building gets no direct sun until midday."""
+    from adaptive_ventilation.engine.solar import solar_load, sun_position
+    from adaptive_ventilation.models import horizon_from_sun_hours
+
+    reference = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    profile = horizon_from_sun_hours(time(13, 0), None, 50.11, 8.68, reference=reference)
+    assert profile is not None
+
+    open_window = WindowState(id="w", name="S", room_id="r", azimuth=180.0, area_m2=2.0)
+    shaded = WindowState(
+        id="w", name="S", room_id="r", azimuth=180.0, area_m2=2.0, horizon_profile=profile
+    )
+
+    morning = datetime(2026, 7, 30, 9, 0, tzinfo=UTC)
+    elevation, azimuth = sun_position(morning, 50.11, 8.68)
+    assert solar_load(shaded, elevation, azimuth) < solar_load(open_window, elevation, azimuth) / 4
+
+    # Once the sun comes round, the two agree again.
+    afternoon = datetime(2026, 7, 30, 15, 0, tzinfo=UTC)
+    elevation, azimuth = sun_position(afternoon, 50.11, 8.68)
+    assert solar_load(shaded, elevation, azimuth) == pytest.approx(
+        solar_load(open_window, elevation, azimuth)
+    )
+
+
+def test_no_sun_hours_configured_means_no_horizon() -> None:
+    from adaptive_ventilation.models import horizon_from_sun_hours
+
+    assert horizon_from_sun_hours(None, None, 50.0, 8.0) is None

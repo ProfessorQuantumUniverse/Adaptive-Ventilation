@@ -157,7 +157,11 @@ def build_context(state: WorldState, memory: EngineMemory) -> EvaluationContext:
             window, state.sun.elevation, state.sun.azimuth, cloud
         )
         ctx.next_sun_hit[window.id] = solar_mod.next_sun_hit(
-            window, state.now, state.building.latitude, state.building.longitude
+            window,
+            state.now,
+            state.building.latitude,
+            state.building.longitude,
+            cloud_at=_cloud_lookup(state),
         )
 
     for room in state.rooms:
@@ -177,6 +181,18 @@ def build_context(state: WorldState, memory: EngineMemory) -> EvaluationContext:
     ctx.tipping = _tipping_points(ctx)
     ctx.cooling_budget = _cooling_budget(ctx)
     return ctx
+
+
+def _cloud_lookup(state: WorldState) -> Callable[[datetime], float | None]:
+    """Forecast cloud cover at an arbitrary future moment, or the current value."""
+
+    def lookup(moment: datetime) -> float | None:
+        entry = state.forecast_at(moment)
+        if entry is not None and entry.cloud_coverage is not None:
+            return entry.cloud_coverage
+        return state.outdoor.cloud_coverage
+
+    return lookup
 
 
 def _assess_room(ctx: EvaluationContext, room: RoomState) -> RoomAssessment:

@@ -161,11 +161,16 @@
                 "cover_auto_allowed": "May be moved automatically",
                 "is_ground_floor": "Ground floor",
                 "ok_when_away": "May stay open while away",
-                "rain_safe": "May stay open in the rain"
+                "rain_safe": "May stay open in the rain",
+                "manual_cover": "Blind operated by hand",
+                "sun_from": "Sun reaches this window from",
+                "sun_until": "Sun leaves this window at"
               },
               "data_description": {
                 "cover_external": "External shutters stop about 80 % of the solar gain, internal blinds only about 30 %.",
-                "cover_auto_allowed": "Off by default. Without this the integration only ever recommends."
+                "cover_auto_allowed": "Off by default. Without this the integration only ever recommends.",
+                "manual_cover": "There is a blind but Home Assistant cannot move it. The integration will tell you when to close and open it instead of doing it itself.",
+                "sun_from": "Only if something shades it, for example the building opposite. A south facing window that gets no sun until midday would be 12:00 here."
               }
             }
           }
@@ -193,7 +198,10 @@
                 "cover_auto_allowed": "May be moved automatically",
                 "is_ground_floor": "Ground floor",
                 "ok_when_away": "May stay open while away",
-                "rain_safe": "May stay open in the rain"
+                "rain_safe": "May stay open in the rain",
+                "manual_cover": "Blind operated by hand",
+                "sun_from": "Sun reaches this window from",
+                "sun_until": "Sun leaves this window at"
               }
             }
           }
@@ -201,7 +209,8 @@
       },
       "error": {
         "required": "This field is required.",
-        "cover_required": "Automatic control needs a shutter entity."
+        "cover_required": "Automatic control needs a shutter entity.",
+        "cover_conflict": "Pick either a shutter entity or a blind operated by hand."
       },
       "abort": {
         "no_rooms": "Add a room first - a window always belongs to one.",
@@ -218,7 +227,9 @@
           "building": "Building",
           "notifications": "Notifications",
           "weights": "Priorities",
-          "thresholds": "Thresholds and calmness"
+          "thresholds": "Thresholds and calmness",
+          "profile": "Profile",
+          "reset": "Reset tuning"
         }
       },
       "sources": {
@@ -300,6 +311,20 @@
         "data_description": {
           "delta_t_hysteresis": "The dead band is three times this value, which keeps the advice from flapping around ΔT = 0.",
           "close_lead_time_minutes": "\"Close in 30 minutes\" instead of a notification that arrives too late."
+        }
+      },
+      "profile": {
+        "title": "Profile",
+        "description": "One choice instead of six sliders. It sets how often you are notified and how quickly the advice is allowed to change. Individual settings in the other steps still override it, so nothing is taken away.",
+        "data": {
+          "profile": "Profile"
+        }
+      },
+      "reset": {
+        "title": "Reset tuning",
+        "description": "Puts every threshold, weight and quiet-hour setting back to its default. Your sensors, weather entity, building profile and notification targets are not touched.",
+        "data": {
+          "confirm": "Yes, reset the tuning"
         }
       }
     }
@@ -558,6 +583,13 @@
         "solar_gain_coefficient": "Solar gain coefficient",
         "internal_gain_w": "Internal gains",
         "air_changes_per_hour": "Air changes per hour"
+      }
+    },
+    "profile": {
+      "options": {
+        "quiet": "Quiet - few notifications, slow to change its mind",
+        "balanced": "Balanced - the default",
+        "eager": "Maximum optimisation - tells you about everything"
       }
     }
   },
