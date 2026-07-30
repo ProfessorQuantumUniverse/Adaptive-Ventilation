@@ -6,7 +6,7 @@ Assistant history and prints what Adaptive Ventilation *would have*
 recommended, how often it would have buzzed your phone, and which rules fired.
 Change a threshold, run it again, compare.
 
-It never imports Home Assistant - the engine is a plain Python package, which
+It never imports Home Assistant, the engine is a plain Python package, which
 is the whole point of keeping it separate.
 
 Usage
@@ -351,7 +351,7 @@ def replay(
 
             # rec.notify only means "may be pushed". Whether it *would* have
             # been pushed also depends on the daily budget and the cooldown,
-            # which the notification manager applies at delivery time - so the
+            # which the notification manager applies at delivery time, so the
             # replay applies exactly the same policy, or the headline number
             # here would be pure fiction.
             if rec.notify and _would_push(rec, memory, moment, world.preferences):
