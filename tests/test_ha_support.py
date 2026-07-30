@@ -433,15 +433,14 @@ def test_preferences_accept_a_string_clock() -> None:
 # Config flow schemas
 # --------------------------------------------------------------------------
 
-
-def test_every_options_step_schema_validates_its_own_defaults() -> None:
+@pytest.mark.asyncio
+async def test_every_options_step_schema_validates_its_own_defaults() -> None:
     """A unitless number selector used to reject the whole form.
 
     ``unit_of_measurement=None`` is not a valid NumberSelectorConfig, so any
     step containing a unitless field (g-value, counts, factors) failed
     validation. Three of the five steps were affected and none were covered.
     """
-    import asyncio
     import types
 
     from adaptive_ventilation import config_flow as cf
@@ -468,7 +467,7 @@ def test_every_options_step_schema_validates_its_own_defaults() -> None:
     flow = Harness()
     steps = ("sources", "building", "notifications", "weights", "thresholds")
     for step in steps:
-        asyncio.run(getattr(flow, f"async_step_{step}")())
+        await getattr(flow, f"async_step_{step}")()
 
     assert set(captured) == set(steps)
     for schema in captured.values():
