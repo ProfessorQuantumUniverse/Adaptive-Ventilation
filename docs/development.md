@@ -42,7 +42,7 @@ whole session, so disable it:
 pytest tests -p no:homeassistant
 ```
 
-Everything except the thirteen tests under `tests/hass/` runs that way — the engine, the physics,
+Everything except the thirteen tests under `tests/hass/` runs that way, the engine, the physics,
 the property tests, the mapping layer, storage, presentation and the calibration maths. The
 `tests/hass/` tests skip themselves on Windows and run in CI on Linux.
 
@@ -68,7 +68,7 @@ python scripts/replay.py --scenarios
 package; without it you get several hundred errors from code that is not yours.
 
 The engine is checked under `--strict`. The Home Assistant layer is fully annotated but not
-strict — large parts of the HA API are still untyped, and chasing that produces noise rather than
+strict, large parts of the HA API are still untyped, and chasing that produces noise rather than
 correctness.
 
 ## Adding a rule
@@ -92,7 +92,7 @@ def my_rule(ctx: EvaluationContext) -> Iterable[Recommendation]:
         )
 ```
 
-3. Add the sentence to `messages.py` in both `en` and `de`. A test fails if you forget — every
+3. Add the sentence to `messages.py` in both `en` and `de`. A test fails if you forget, every
    `reason_key` used anywhere in the engine must have a template.
 4. Add a scenario under `tests/fixtures/scenarios/` if the rule is worth a regression test. The
    YAML is declarative; no Python needed.
@@ -133,7 +133,7 @@ python scripts/replay.py --csv history.csv --map my_flat.yaml -v
 ```
 
 The map file describes which entity is which; `docs/replay_example.yaml` is a starting point.
-The forecast is taken from the recorded outdoor series itself — deliberately, because when tuning
+The forecast is taken from the recorded outdoor series itself, deliberately, because when tuning
 thresholds you want to know whether the rules make the right call given correct information, not
 how wrong the weather service was that week.
 
@@ -141,7 +141,7 @@ how wrong the weather service was that week.
 
 `custom_components/adaptive_ventilation/frontend/adaptive-ventilation-panel.js` is loaded by the
 browser as-is. There is no build step. To iterate on it without a Home Assistant instance, serve
-the file next to a JSON payload and stub `hass.callWS` — the payload shape is exactly what
+the file next to a JSON payload and stub `hass.callWS`, the payload shape is exactly what
 `presentation.panel_payload()` returns, so you can generate a realistic one straight from the
 engine.
 
