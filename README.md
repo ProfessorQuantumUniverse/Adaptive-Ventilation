@@ -4,7 +4,7 @@
 close it again.
 
 [![CI](https://github.com/ProfessorQuantumUniverse/Adaptive-Ventilation/actions/workflows/ci.yaml/badge.svg)](https://github.com/ProfessorQuantumUniverse/Adaptive-Ventilation/actions/workflows/ci.yaml)
-[![hacs](https://img.shields.io/badge/HACS-custom-41BDF5.svg)](https://hacs.xyz)
+<!-- [![hacs](https://img.shields.io/badge/HACS-custom-41BDF5.svg)](https://hacs.xyz) NOT NOW -->
 
 ---
 
