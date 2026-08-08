@@ -439,8 +439,7 @@
           "summer": "Sommer",
           "winter": "Winter",
           "away": "Abwesend",
-          "off": "Aus",
-          "manual_hold": "Manuell gehalten"
+          "off": "Aus"
         }
       }
     },
@@ -587,9 +586,9 @@
     },
     "profile": {
       "options": {
-        "quiet": "Ruhig – wenige Meldungen, ändert seine Meinung langsam",
-        "balanced": "Ausgewogen – der Standard",
-        "eager": "Maximal optimiert – meldet alles"
+        "quiet": "Zurückhaltend - nur Warnungen und Luftqualität, keine Komfort-Tipps (max. 3 pro Tag)",
+        "balanced": "Ausgewogen - bis zu 6 Meldungen pro Tag (Standard)",
+        "eager": "Aufmerksam - bis zu 12 Meldungen pro Tag, folgt dem Wetter eng"
       }
     }
   },

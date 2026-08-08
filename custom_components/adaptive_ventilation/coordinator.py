@@ -11,7 +11,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, CoreState, Event, HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.event import (
@@ -134,7 +134,18 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
         stored_memory = await self._memory_store.async_load()
         if stored_memory:
             self.memory = deserialize_memory(stored_memory)
-            self.mode = Mode(stored_memory.get("mode", Mode.AUTO.value))
+            # Unguarded this raises ValueError on any mode string this version
+            # no longer knows, and an exception here fails the whole config
+            # entry - the integration disappears rather than degrading.
+            # deserialize_memory already treats a stale Action the same way.
+            try:
+                self.mode = Mode(stored_memory.get("mode", Mode.AUTO.value))
+            except ValueError:
+                _LOGGER.warning(
+                    "Stored mode %r is not one this version knows - falling back to auto",
+                    stored_memory.get("mode"),
+                )
+                self.mode = Mode.AUTO
             self.purge_active = {
                 key: dt_util.parse_datetime(value) or dt_util.utcnow()
                 for key, value in (stored_memory.get("purge_active") or {}).items()
@@ -178,11 +189,24 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
         self._unsubscribers.append(
             async_track_time_interval(self.hass, self._handle_calibration, CALIBRATION_INTERVAL)
         )
-        self._unsubscribers.append(
-            self.hass.bus.async_listen_once(
-                EVENT_HOMEASSISTANT_STARTED, lambda _event: self._debouncer.async_schedule_call()
-            )
-        )
+        if self.hass.state is CoreState.running:
+            # Set up after startup (a reload, or the entry being added by hand),
+            # so the event we would be waiting for has already been and gone.
+            self._debouncer.async_schedule_call()
+            return
+
+        @callback
+        def _on_started(_event: Event) -> None:
+            # A once-listener unregisters itself as it fires. Keeping our copy
+            # of its unsubscribe meant every later reload called it a second
+            # time, and Home Assistant logged "Unable to remove unknown job
+            # listener" with a ValueError traceback for it.
+            if unsubscribe in self._unsubscribers:
+                self._unsubscribers.remove(unsubscribe)
+            self._debouncer.async_schedule_call()
+
+        unsubscribe = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _on_started)
+        self._unsubscribers.append(unsubscribe)
 
     @callback
     def _unsubscribe(self) -> None:

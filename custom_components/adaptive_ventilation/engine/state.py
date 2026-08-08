@@ -83,7 +83,6 @@ class Mode(StrEnum):
     WINTER = "winter"
     AWAY = "away"
     OFF = "off"
-    MANUAL_HOLD = "manual_hold"
 
 
 class Season(StrEnum):

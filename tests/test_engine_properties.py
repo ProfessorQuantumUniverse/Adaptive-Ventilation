@@ -256,8 +256,10 @@ def test_random_worlds_keep_the_invariants(seed: int) -> None:
         assert result.global_state is GlobalState.OFF
         assert not result.recommendations
 
-    # Nothing gets pushed while notifications are disabled or data is stale.
-    if state.outdoor.is_stale:
+    # Stale data surfaces as such - unless the user switched the whole thing
+    # off, which outranks it. `determine_global_state` checks OFF first, and an
+    # integration that is off should say so rather than complain about sensors.
+    if state.outdoor.is_stale and state.mode is not Mode.OFF:
         assert result.global_state is GlobalState.UNAVAILABLE_DATA
 
 

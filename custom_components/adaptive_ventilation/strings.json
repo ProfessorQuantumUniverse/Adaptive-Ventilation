@@ -439,8 +439,7 @@
           "summer": "Summer",
           "winter": "Winter",
           "away": "Away",
-          "off": "Off",
-          "manual_hold": "Manual hold"
+          "off": "Off"
         }
       }
     },
@@ -587,9 +586,9 @@
     },
     "profile": {
       "options": {
-        "quiet": "Quiet - few notifications, slow to change its mind",
-        "balanced": "Balanced - the default",
-        "eager": "Maximum optimisation - tells you about everything"
+        "quiet": "Reserved - warnings and air quality only, no comfort tips (max. 3 a day)",
+        "balanced": "Balanced - up to 6 notifications a day (the default)",
+        "eager": "Attentive - up to 12 notifications a day, follows the weather closely"
       }
     }
   },

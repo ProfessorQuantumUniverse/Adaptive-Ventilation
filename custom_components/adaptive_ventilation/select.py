@@ -12,7 +12,12 @@ from .coordinator import AdaptiveVentilationConfigEntry, AdaptiveVentilationCoor
 from .engine.state import Mode
 from .entity import AdaptiveVentilationEntity
 
-SELECTABLE_MODES = [Mode.AUTO, Mode.SUMMER, Mode.WINTER, Mode.AWAY, Mode.OFF]
+#: Every mode is selectable. MANUAL_HOLD used to sit in the enum without a
+#: single line of engine code reading it: the select left it out, but
+#: `set_mode` accepted it, and the entity then reported a state missing from
+#: its own option list. The per-target hold that name suggested lives in
+#: EngineMemory.manual_hold and was never a mode at all.
+SELECTABLE_MODES = list(Mode)
 
 
 async def async_setup_entry(
