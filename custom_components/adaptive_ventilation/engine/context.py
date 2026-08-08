@@ -321,23 +321,30 @@ def _air_quality_score(
 
 def _tipping_points(ctx: EvaluationContext) -> TippingPoints:
     state = ctx.state
-    reference = _reference_indoor_temperature(state.rooms)
-    if reference is None or not state.forecast:
+    reference = _reference_room(state.rooms)
+    if reference is None or reference.temperature is None or not state.forecast:
         return TippingPoints()
 
     morning, evening = thermal.find_tipping_points(
-        reference,
+        reference.temperature,
         state.forecast,
         state.now,
         hysteresis=state.preferences.delta_t_hysteresis,
     )
-    cooler_outside = state.outdoor.temperature < reference - state.preferences.delta_t_hysteresis
+    cooler_outside = (
+        state.outdoor.temperature < reference.temperature - state.preferences.delta_t_hysteresis
+    )
     upcoming = [t for t in (morning, evening) if t is not None]
     minutes = min((t - state.now).total_seconds() / 60.0 for t in upcoming) if upcoming else None
 
-    # Confidence drops with distance and with the number of estimated rooms.
+    # The crossover is computed from *one* room's temperature plus the forecast,
+    # so whether that room is measured matters far more than how many other
+    # sensors the flat has. The old "0.4 + 0.2 per measured room" left a flat
+    # with a single sensor at 0.6 - permanently below the 0.7 push threshold,
+    # which muted the morning close for exactly the setups it matters most in.
     measured = sum(1 for r in state.rooms if not r.is_estimated and r.temperature is not None)
-    base_confidence = clamp(0.4 + 0.2 * measured, 0.3, 0.95)
+    base = 0.75 if not reference.is_estimated else 0.45
+    base_confidence = clamp(base + 0.05 * max(0, measured - 1), 0.3, 0.95)
     return TippingPoints(
         morning=morning,
         evening=evening,
@@ -348,13 +355,12 @@ def _tipping_points(ctx: EvaluationContext) -> TippingPoints:
     )
 
 
-def _reference_indoor_temperature(rooms: Sequence[RoomState]) -> float | None:
-    """Indoor temperature the tipping points refer to: the highest priority room."""
+def _reference_room(rooms: Sequence[RoomState]) -> RoomState | None:
+    """Room the tipping points refer to: the highest priority one."""
     candidates = [r for r in rooms if r.temperature is not None]
     if not candidates:
         return None
-    best = min(candidates, key=lambda r: (r.priority, -(r.temperature or 0.0)))
-    return best.temperature
+    return min(candidates, key=lambda r: (r.priority, -(r.temperature or 0.0)))
 
 
 def _cooling_budget(ctx: EvaluationContext) -> CoolingBudget:

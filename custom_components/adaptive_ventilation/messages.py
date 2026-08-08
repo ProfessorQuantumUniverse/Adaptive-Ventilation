@@ -303,6 +303,10 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "en": "Sun reaches {window} in {minutes} min - shade it before it arrives.",
         "de": "In {minutes} min trifft die Sonne {window} - vorher verschatten.",
     },
+    "solar_shading_now": {
+        "en": "The sun is reaching {window} right now - shade it.",
+        "de": "Die Sonne erreicht {window} gerade - jetzt verschatten.",
+    },
     "shading_release": {
         "en": "The sun has left {window} - you can open the blind again.",
         "de": "Die Sonne ist von {window} weg - der Rollladen kann wieder hoch.",
@@ -352,6 +356,16 @@ TEMPLATES: dict[str, dict[str, str]] = {
         "de": (
             "Keine Innentemperatur für {room} - damit fehlt der Vergleichswert. "
             "Sensor ergänzen oder in den Raum-Einstellungen einen Referenzraum wählen."
+        ),
+    },
+    "idle_held": {
+        "en": (
+            "{window} is paused for today because the advice was overruled twice. "
+            "It picks up again tomorrow."
+        ),
+        "de": (
+            "{window} pausiert heute, weil die Empfehlung zweimal überstimmt wurde. "
+            "Morgen geht es weiter."
         ),
     },
     "idle_stale": {

@@ -166,7 +166,10 @@ def morning_close(ctx: EvaluationContext) -> Iterable[Recommendation]:
             room_id=room.id,
             reason_data=dict(data, room=room.name, window=window.name),
             confidence=min(room.confidence, tipping.morning_confidence or 0.6),
-            notify=window.is_open,
+            # The one push this integration exists for. A window with no contact
+            # sensor is not evidence that it is closed, and staying quiet about
+            # it is the failure mode the morning crossover is supposed to fix.
+            notify=window.may_be_open,
             valid_until=tipping.morning + timedelta(hours=1),
         )
 

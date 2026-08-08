@@ -119,6 +119,8 @@ const TEXT = {
     calibNever: "The self-calibration has not run yet.",
     calibNoRecorder: "No recorder history available, so nothing can be learned.",
     calibNoHistory: "No usable history yet.",
+    calibNoOutdoor:
+      "No outdoor temperature history to compare against. Check that the weather entity, or your own outdoor sensor, is being recorded.",
     calibNotEnough:
       "Not enough usable episodes yet. Each value needs at least {min} before it replaces the building default.",
     calibLastRun: "Last run",
@@ -194,6 +196,8 @@ const TEXT = {
     calibNever: "Die Selbstkalibrierung ist noch nicht gelaufen.",
     calibNoRecorder: "Keine Recorder-Historie verfügbar, es kann nichts gelernt werden.",
     calibNoHistory: "Noch keine brauchbare Historie.",
+    calibNoOutdoor:
+      "Keine Außentemperatur-Historie zum Vergleichen. Prüfe, ob die Wetter-Entität bzw. dein eigener Außensensor vom Recorder aufgezeichnet wird.",
     calibNotEnough:
       "Noch zu wenige brauchbare Episoden. Jeder Wert braucht mindestens {min}, bevor er den Gebäude-Startwert ersetzt.",
     calibLastRun: "Letzter Lauf",
@@ -839,6 +843,7 @@ class AdaptiveVentilationPanel extends HTMLElement {
           never_run: t.calibNever,
           no_recorder: t.calibNoRecorder,
           no_history: t.calibNoHistory,
+          no_outdoor_history: t.calibNoOutdoor,
           not_enough_data: t.calibNotEnough.replace("{min}", meta.min_samples ?? 3),
           ok: t.calibNotEnough.replace("{min}", meta.min_samples ?? 3),
         }[meta.status || "never_run"] || t.calibNever;

@@ -313,12 +313,16 @@ class ParsedConfig:
 # --------------------------------------------------------------------------
 
 
-def build_preferences(options: Mapping[str, Any]) -> Preferences:
+def build_preferences(options: Mapping[str, Any], timezone: str | None = None) -> Preferences:
     """Turn the options flow result into engine :class:`Preferences`.
 
     A profile supplies the base values and any explicit setting overrides it,
     so picking "quiet" is a safe one-click move that still leaves every
     individual knob reachable.
+
+    ``timezone`` is Home Assistant's own timezone name. The quiet hours are
+    wall-clock times, the engine runs on UTC, and only the caller knows which
+    clock the user was looking at.
     """
     kwargs: dict[str, Any] = dict(PROFILES.get(str(options.get(CONF_PROFILE, "")), {}))
     for name in Preferences.__dataclass_fields__:
@@ -332,6 +336,9 @@ def build_preferences(options: Mapping[str, Any]) -> Preferences:
         parsed = _parse_time(raw)
         if parsed is not None:
             kwargs[key] = parsed
+
+    if timezone:
+        kwargs["timezone"] = timezone
 
     _repair_bands(kwargs)
 
@@ -728,6 +735,10 @@ def build_windows(hass: HomeAssistant, configs: Iterable[WindowConfig]) -> tuple
         contact = hass.states.get(config.contact_sensor) if config.contact_sensor else None
         is_open = bool(contact and contact.state in (STATE_ON, STATE_OPEN))
         open_since = contact.last_changed if (contact and is_open) else None
+        contact_known = contact is not None and contact.state not in (
+            STATE_UNKNOWN,
+            STATE_UNAVAILABLE,
+        )
 
         is_tilted = False
         if config.tilt_sensor:
@@ -752,7 +763,9 @@ def build_windows(hass: HomeAssistant, configs: Iterable[WindowConfig]) -> tuple
                 room_id=config.room_id,
                 is_open=is_open,
                 is_tilted=is_tilted,
+                contact_known=contact_known,
                 open_since=open_since,
+                contact_changed=contact.last_changed if contact is not None else None,
                 azimuth=config.azimuth,
                 area_m2=config.area_m2,
                 tilt_capable=config.tilt_capable,

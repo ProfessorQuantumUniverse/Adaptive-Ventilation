@@ -261,7 +261,10 @@ async def ws_preview(
     def _run() -> dict[str, Any]:
         current = _evaluate(coordinator.world, EngineMemory())
         proposed = _evaluate(
-            _replace(coordinator.world, preferences=build_preferences(candidate)),
+            _replace(
+                coordinator.world,
+                preferences=build_preferences(candidate, hass.config.time_zone),
+            ),
             EngineMemory(),
         )
         return {

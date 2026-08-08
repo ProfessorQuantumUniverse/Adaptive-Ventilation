@@ -64,7 +64,9 @@ def storm_warning(ctx: EvaluationContext) -> Iterable[Recommendation]:
             reason_data=data,
             veto=True,
             blocks=OPENING_ACTIONS,
-            notify=window.is_open,
+            # Storms are rare enough that "I cannot see this window, go check
+            # it" is worth a push. Rain, below, is not - that would be daily.
+            notify=window.may_be_open,
             valid_until=alerts[0].end if alerts else None,
         )
         if hail and window.has_cover and (window.cover_position or 0) > 10:

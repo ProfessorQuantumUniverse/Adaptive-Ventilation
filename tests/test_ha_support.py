@@ -320,6 +320,43 @@ def test_outlier_is_dropped_from_the_robust_mean() -> None:
     assert _robust_mean([1.0, 1.1, 0.9, 1.05, 40.0]) == pytest.approx(1.01, abs=0.05)
 
 
+class _RecordedState:
+    """The subset of a recorder row that ``_to_samples`` looks at."""
+
+    def __init__(self, state: str, last_changed: datetime, last_updated: datetime, **attributes):
+        self.state = state
+        self.attributes = attributes
+        self.last_changed = last_changed
+        self.last_updated = last_updated
+
+
+def test_a_weather_entity_yields_a_temperature_series() -> None:
+    """The outdoor sensor is optional, so calibration has to read the weather.
+
+    Two traps in one: a weather entity's state is the condition string, which
+    is not a number at all, and its temperature moves without the state ever
+    changing - so ``last_changed`` would stamp a whole week of readings onto
+    the handful of moments the sky happened to change.
+    """
+    from adaptive_ventilation.calibration import _to_samples
+
+    rows = [
+        _RecordedState(
+            "partlycloudy",
+            last_changed=NOW,
+            last_updated=NOW + timedelta(hours=i),
+            temperature=20.0 - i,
+        )
+        for i in range(4)
+    ]
+
+    assert _to_samples(rows) == []  # the condition string is not a measurement
+
+    samples = _to_samples(rows, attribute="temperature")
+    assert [s.value for s in samples] == [20.0, 19.0, 18.0, 17.0]
+    assert len({s.time for s in samples}) == 4
+
+
 # --------------------------------------------------------------------------
 # Config flow helpers
 # --------------------------------------------------------------------------

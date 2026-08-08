@@ -24,6 +24,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_OUTDOOR_TEMPERATURE,
+    CONF_WEATHER_ENTITY,
     EVENT_CALIBRATION_UPDATED,
 )
 from .engine import psychrometrics as psy
@@ -96,7 +97,16 @@ class Calibrator:
             return {"skipped": "no history"}
 
         self._last_run = now
-        outdoor = history.get(self.coordinator.config.options.get(CONF_OUTDOOR_TEMPERATURE, ""), [])
+        outdoor_entity, _attribute = self._outdoor_source()
+        outdoor = history.get(outdoor_entity, [])
+        if len(outdoor) < 20:
+            self.last_status = "no_outdoor_history"
+            _LOGGER.debug(
+                "calibration has no usable outdoor history from %r (%d samples)",
+                outdoor_entity,
+                len(outdoor),
+            )
+            return {"skipped": "no outdoor history", "outdoor_entity": outdoor_entity}
         updated: dict[str, dict[str, float]] = {}
 
         for room in self.coordinator.config.rooms:
@@ -151,25 +161,66 @@ class Calibrator:
     # History access
     # ------------------------------------------------------------------
 
+    def _outdoor_source(self) -> tuple[str, str | None]:
+        """Entity and attribute the outdoor temperature history comes from.
+
+        The outdoor sensor is optional everywhere else in the integration - the
+        weather entity is the documented fallback, and ``build_outdoor`` uses
+        it. Calibration silently required the sensor: with none configured it
+        looked up ``history[""]``, found nothing, and dropped every room on the
+        ``len(outdoor) < 20`` check. A whole class of installs could therefore
+        never learn anything, with no error anywhere to say why.
+        """
+        options = self.coordinator.config.options
+        sensor = options.get(CONF_OUTDOOR_TEMPERATURE)
+        if sensor:
+            return str(sensor), None
+        weather = options.get(CONF_WEATHER_ENTITY)
+        return (str(weather), "temperature") if weather else ("", None)
+
     async def _async_history(self, now: datetime) -> dict[str, list[Sample]]:
         from homeassistant.components.recorder import get_instance, history
 
-        entity_ids = list(self.coordinator.config.tracked_entities)
-        if not entity_ids:
-            return {}
+        recorder = get_instance(self.hass)
         start = now - timedelta(days=HISTORY_DAYS)
+        entity_ids = list(self.coordinator.config.tracked_entities)
+        outdoor_entity, attribute = self._outdoor_source()
+        result: dict[str, list[Sample]] = {}
 
-        raw = await get_instance(self.hass).async_add_executor_job(
-            history.get_significant_states,
-            self.hass,
-            start,
-            now,
-            entity_ids,
-            None,
-            True,
-            True,
-        )
-        return {entity_id: _to_samples(states) for entity_id, states in (raw or {}).items()}
+        if entity_ids:
+            raw = await recorder.async_add_executor_job(
+                history.get_significant_states,
+                self.hass,
+                start,
+                now,
+                entity_ids,
+                None,
+                True,
+                True,
+            )
+            result.update({entity: _to_samples(states) for entity, states in (raw or {}).items()})
+
+        if attribute is not None and outdoor_entity:
+            # A weather entity's *state* is the condition, so the temperature
+            # only ever moves in the attributes - and significant_changes_only
+            # keeps just the rows whose state string changed, which over a week
+            # is a handful. Fetch this one separately rather than making the
+            # whole query that much heavier.
+            raw = await recorder.async_add_executor_job(
+                history.get_significant_states,
+                self.hass,
+                start,
+                now,
+                [outdoor_entity],
+                None,
+                True,
+                False,
+            )
+            result[outdoor_entity] = _to_samples(
+                (raw or {}).get(outdoor_entity, []), attribute=attribute
+            )
+
+        return result
 
     def _open_periods(
         self, history: dict[str, list[Sample]], room_id: str
@@ -464,12 +515,24 @@ def _bounded(value: float, bounds: tuple[float, float]) -> float | None:
     return value if bounds[0] <= value <= bounds[1] else None
 
 
-def _to_samples(states: Iterable[Any]) -> list[Sample]:
-    """Convert recorder states into numeric samples, dropping anything unusable."""
+def _to_samples(states: Iterable[Any], attribute: str | None = None) -> list[Sample]:
+    """Convert recorder states into numeric samples, dropping anything unusable.
+
+    With ``attribute`` set the value is read from the state attributes instead
+    of the state itself, which is the only way to get a temperature series out
+    of a weather entity.
+    """
     samples: list[Sample] = []
     for state in states:
-        raw = getattr(state, "state", None)
-        moment = getattr(state, "last_changed", None) or getattr(state, "last_updated", None)
+        if attribute is not None:
+            raw = (getattr(state, "attributes", None) or {}).get(attribute)
+            # An attribute-only change bumps last_updated but not last_changed.
+            # Reading last_changed first would collapse a week of temperatures
+            # onto the few moments the weather condition happened to change.
+            moment = getattr(state, "last_updated", None) or getattr(state, "last_changed", None)
+        else:
+            raw = getattr(state, "state", None)
+            moment = getattr(state, "last_changed", None) or getattr(state, "last_updated", None)
         if raw is None or moment is None:
             continue
         if raw in ("on", "open", "true"):

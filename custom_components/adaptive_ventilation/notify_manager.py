@@ -143,7 +143,12 @@ class NotificationManager:
             "message": body,
             "data": {
                 "tag": tag,
-                "group": DOMAIN,
+                # Deliberately no "group". Android builds a summary notification
+                # for a group, and `clear_notification` only ever removes the
+                # tagged children - the summary stays behind as a notification
+                # with no title and no text, which is what users reported as
+                # "empty notifications". The bundling was never worth much:
+                # rarely is more than one recommendation on screen at a time.
                 "channel": "Adaptive Ventilation",
                 "importance": "high" if rec.priority is Priority.SAFETY else "default",
                 "notification_icon": _icon(rec.action),

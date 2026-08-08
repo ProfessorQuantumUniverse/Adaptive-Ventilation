@@ -71,7 +71,7 @@ def solar_shading(ctx: EvaluationContext) -> Iterable[Recommendation]:
             f"{window.id}:cover",
             Action.COVER_DOWN if window.cover_external or not window.is_open else Action.COVER_SLAT,
             Priority.COMFORT,
-            "solar_shading_ahead" if imminent and not active else "solar_shading",
+            _shading_reason(imminent and not active, minutes_ahead),
             urgency=urgency,
             room_id=room.id,
             reason_data={
@@ -87,6 +87,18 @@ def solar_shading(ctx: EvaluationContext) -> Iterable[Recommendation]:
             expected_benefit=f"-{saving / 1000.0:.1f} kW",
             notify=window.cover_auto_allowed is False and saving > 300.0,
         )
+
+
+def _shading_reason(ahead: bool, minutes: float | None) -> str:
+    """Pick the wording that matches how much warning is actually left.
+
+    "Sun reaches this window in 0 min - shade it beforehand" is what the panel
+    showed for most of an afternoon: the sun is already on the glass, so there
+    is no "beforehand" left to act in.
+    """
+    if not ahead:
+        return "solar_shading"
+    return "solar_shading_now" if minutes is None or minutes < 5.0 else "solar_shading_ahead"
 
 
 @rule(

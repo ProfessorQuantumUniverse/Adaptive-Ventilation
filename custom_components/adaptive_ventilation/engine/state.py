@@ -13,6 +13,7 @@ from enum import IntEnum, StrEnum
 from functools import cached_property
 import math
 from typing import Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import psychrometrics as psy
 
@@ -48,6 +49,21 @@ CLOSING_ACTIONS: frozenset[Action] = frozenset({Action.CLOSE, Action.KEEP_CLOSED
 COVER_ACTIONS: frozenset[Action] = frozenset(
     {Action.COVER_DOWN, Action.COVER_UP, Action.COVER_SLAT}
 )
+
+
+def local_day(moment: datetime, timezone: str | None) -> str:
+    """ISO calendar day of ``moment`` on ``timezone``'s clock.
+
+    Everything in the engine is UTC, but "today" is a thing the user sees on
+    their own wall clock: the daily push budget, "ignore today" and the manual
+    hold all rolled over at 02:00 local in central European summer.
+    """
+    if timezone is not None and moment.tzinfo is not None:
+        try:
+            return moment.astimezone(ZoneInfo(timezone)).date().isoformat()
+        except (ZoneInfoNotFoundError, ValueError):
+            pass
+    return moment.date().isoformat()
 
 
 class Priority(IntEnum):
@@ -343,6 +359,13 @@ class Preferences:
     max_pushes_per_day: int = 6
     close_lead_time_minutes: int = 30
     window_forgotten_hours: float = 3.0
+    #: IANA name of the household's timezone. Quiet hours are wall-clock times
+    #: the user typed while looking at their own clock, but every timestamp in
+    #: the engine is UTC - without this they were compared directly, so "22:00
+    #: to 07:00" silenced 00:00 to 09:00 local in central European summer and
+    #: swallowed exactly the two pushes the integration exists for: the night
+    #: flush and the morning close.
+    timezone: str | None = None
 
     # -- behaviour ---------------------------------------------------------
     allow_cover_automation: bool = False
@@ -373,9 +396,18 @@ class Preferences:
         }[axis]
         return raw / 50.0
 
+    def local_time(self, moment: datetime) -> time:
+        """``moment`` on the household's own clock."""
+        if self.timezone is None or moment.tzinfo is None:
+            return moment.time()
+        try:
+            return moment.astimezone(ZoneInfo(self.timezone)).time()
+        except (ZoneInfoNotFoundError, ValueError):
+            return moment.time()
+
     def in_quiet_hours(self, moment: datetime) -> bool:
         """Whether ``moment`` falls into the configured quiet hours."""
-        current = moment.time()
+        current = self.local_time(moment)
         start, end = self.quiet_hours_start, self.quiet_hours_end
         if start == end:
             return False
@@ -490,7 +522,17 @@ class WindowState:
     room_id: str
     is_open: bool = False
     is_tilted: bool = False
+    #: Whether a contact sensor actually answers the question. Without one
+    #: ``is_open`` is a guess ("closed"), and treating that guess as knowledge
+    #: silently swallowed every "close it" push and made the contradiction
+    #: detection read an unanswerable open recommendation as the user saying no.
+    contact_known: bool = False
     open_since: datetime | None = None
+    #: When the contact sensor last changed, open or closed. ``open_since``
+    #: only survives while the window is open, but telling "the user shut this
+    #: on purpose" apart from "it has been shut all along" needs the closing
+    #: edge too.
+    contact_changed: datetime | None = None
     azimuth: float = 180.0
     area_m2: float | None = None
     tilt_capable: bool = True
@@ -507,6 +549,16 @@ class WindowState:
     manual_cover: bool = False
     horizon_profile: tuple[float, ...] | None = None
     solar_load_w: float | None = None
+
+    @property
+    def may_be_open(self) -> bool:
+        """Open, or open for all we know.
+
+        The gate for "should we bother telling the user to close this". With a
+        contact sensor it is the sensor; without one the user is the sensor and
+        has to be asked.
+        """
+        return self.is_open or not self.contact_known
 
     @property
     def has_cover(self) -> bool:
@@ -861,9 +913,18 @@ class EngineMemory:
     pushes_today: int = 0
     push_day: str | None = None
     budget_history: list[tuple[str, float]] = field(default_factory=list)
+    #: Household timezone, set by the coordinator on every evaluation and
+    #: deliberately not persisted. "Today" has to mean the user's today: every
+    #: timestamp here is UTC, so a plain ``now.date()`` rolled the push budget
+    #: and "ignore today" over at 02:00 local in central European summer.
+    timezone: str | None = None
 
     def target(self, target_id: str) -> TargetMemory:
         return self.targets.setdefault(target_id, TargetMemory())
+
+    def day_of(self, moment: datetime) -> str:
+        """The calendar day ``moment`` falls on, on the household's clock."""
+        return local_day(moment, self.timezone)
 
     def is_snoozed(self, rec_id: str, now: datetime) -> bool:
         until = self.snoozed_until.get(rec_id)
@@ -874,28 +935,28 @@ class EngineMemory:
         return False
 
     def is_ignored_today(self, rec_id: str, now: datetime) -> bool:
-        return self.ignored_today.get(rec_id) == now.date().isoformat()
+        return self.ignored_today.get(rec_id) == self.day_of(now)
 
     def is_held(self, target_id: str, now: datetime) -> bool:
-        return self.manual_hold.get(target_id) == now.date().isoformat()
+        return self.manual_hold.get(target_id) == self.day_of(now)
 
     def snooze(self, rec_id: str, until: datetime) -> None:
         self.snoozed_until[rec_id] = until
 
     def ignore_today(self, rec_id: str, now: datetime) -> None:
-        self.ignored_today[rec_id] = now.date().isoformat()
+        self.ignored_today[rec_id] = self.day_of(now)
 
     def hold(self, target_id: str, now: datetime) -> None:
-        self.manual_hold[target_id] = now.date().isoformat()
+        self.manual_hold[target_id] = self.day_of(now)
 
     def note_push(self, now: datetime) -> None:
-        day = now.date().isoformat()
+        day = self.day_of(now)
         if self.push_day != day:
             self.push_day, self.pushes_today = day, 0
         self.pushes_today += 1
 
     def pushes_left(self, now: datetime, limit: int) -> int:
-        if self.push_day != now.date().isoformat():
+        if self.push_day != self.day_of(now):
             return limit
         return max(0, limit - self.pushes_today)
 
@@ -940,7 +1001,7 @@ class EngineMemory:
         self.last_purge[room_id] = now
 
     def record_budget(self, now: datetime, net_k: float) -> None:
-        day = now.date().isoformat()
+        day = self.day_of(now)
         self.budget_history = [(d, v) for d, v in self.budget_history if d != day][-6:]
         self.budget_history.append((day, net_k))
 
@@ -957,7 +1018,7 @@ class EngineMemory:
         iteration" if that happens to land in between. Pruning against a
         snapshot can at worst miss one entry until the next run.
         """
-        today = now.date().isoformat()
+        today = self.day_of(now)
         self.cooldowns = {k: v for k, v in list(self.cooldowns.items()) if v > now}
         self.snoozed_until = {k: v for k, v in list(self.snoozed_until.items()) if v > now}
         self.ignored_today = {k: v for k, v in list(self.ignored_today.items()) if v == today}

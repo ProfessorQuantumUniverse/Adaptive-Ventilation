@@ -219,6 +219,10 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
             raise UpdateFailed(f"could not build world state: {err}") from err
 
         self.world = world
+        # Not persisted, so it has to be re-applied on every cycle: the memory
+        # decides what "today" means for the push budget, "ignore today" and
+        # the manual hold, and that has to be the user's today, not UTC's.
+        self.memory.timezone = self.hass.config.time_zone
         self._expire_purges(world.now)
 
         # partial, not positional args: disabled_rules is keyword-only.
@@ -261,7 +265,7 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
             presence=True if presence is None else presence,
             weather_alerts=build_alerts(self.hass, options.get(CONF_WEATHER_ALERT_ENTITY)),
             building=building,
-            preferences=build_preferences(options),
+            preferences=build_preferences(options, self.hass.config.time_zone),
             learned=self.learned,
             purge_active=dict(self.purge_active),
         )
@@ -487,6 +491,11 @@ class AdaptiveVentilationCoordinator(DataUpdateCoordinator[EvaluationResult]):
                     self.memory.note_purge(rec.room_id, now)
                 tracked = self.memory.target(rec.target)
                 tracked.contradictions = 0
+                # The advice has been dealt with, so there is nothing left to
+                # disagree with. Leaving the timestamp in place kept the
+                # contradiction detection armed against a notification that is
+                # no longer on screen.
+                tracked.last_notified = None
         if self._notifier is not None:
             await self._notifier.async_clear(recommendation_id)
         await self.async_persist()

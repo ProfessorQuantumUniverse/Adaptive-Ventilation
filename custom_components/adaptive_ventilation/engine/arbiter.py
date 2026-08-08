@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from .context import EvaluationContext
@@ -246,14 +246,14 @@ def _track(ctx: EvaluationContext, target: str, winner: Recommendation) -> None:
     window = ctx.state.window(target)
     if window is None or tracked.last_notified is None:
         return
-    if not _contradicted(window, winner.action):
+    if not _contradicted(window, winner.action, tracked.last_notified):
         return
 
     cooldown = timedelta(minutes=ctx.preferences.cooldown_minutes)
     if ctx.now - tracked.last_notified < cooldown:
         return
 
-    today = ctx.now.date().isoformat()
+    today = memory.day_of(ctx.now)
     if tracked.contradiction_day != today:
         tracked.contradiction_day = today
         tracked.contradictions = 0
@@ -264,7 +264,26 @@ def _track(ctx: EvaluationContext, target: str, winner: Recommendation) -> None:
         memory.hold(target, ctx.now)
 
 
-def _contradicted(window: WindowState, action: Action) -> bool:
+def _contradicted(window: WindowState, action: Action, advised_at: datetime) -> bool:
+    """Whether the user *overruled* us, rather than simply not having reacted.
+
+    This has to be an action, not the absence of one. The old version asked
+    only "is the window in the state we asked for", which every sleeping,
+    absent or busy user fails: two cooldowns after the first push ever sent for
+    a window, :func:`_track` put a manual hold on it and the arbiter dropped
+    every recommendation below SAFETY for the rest of the day. ``last_notified``
+    is never cleared, so the check kept re-arming and the window stayed muted
+    day after day - while covers, whose actions are in neither action set, went
+    on notifying. That is the "only two shutter notifications a day" report.
+
+    So we require evidence: a contact sensor (a guess cannot overrule anything)
+    that has changed *since* the advice went out, and that now reads the
+    opposite of what we asked for.
+    """
+    if not window.contact_known:
+        return False
+    if window.contact_changed is None or window.contact_changed <= advised_at:
+        return False
     if action in CLOSING_ACTIONS:
         return window.is_open
     if action in OPENING_ACTIONS:
@@ -290,6 +309,12 @@ def _idle_reason(ctx: EvaluationContext, window: WindowState) -> tuple[str, dict
         return "idle_stale", data
     if state.is_away:
         return "idle_away", data
+    # A held target produces advice that is then thrown away, so without this
+    # the panel showed a flat "nothing to do" next to a four-Kelvin gradient -
+    # the one screen that should have explained the silence was the one that
+    # hid it, and diagnosing it took a dump of the engine's internals.
+    if ctx.memory.is_held(window.id, state.now):
+        return "idle_held", data
 
     room = ctx.state.room(window.room_id)
     data["room"] = room.name if room else window.room_id

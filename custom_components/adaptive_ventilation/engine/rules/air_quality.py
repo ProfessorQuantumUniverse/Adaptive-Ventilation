@@ -62,7 +62,13 @@ def co2_high(ctx: EvaluationContext) -> Iterable[Recommendation]:
                 confidence=room.confidence,
                 expected_benefit=f"CO2 -> ~{max(450, int(room.co2 * 0.45))} ppm",
                 valid_until=ctx.now + timedelta(hours=2),
-                notify=urgent or not ctx.preferences.in_quiet_hours(ctx.now),
+                # No quiet-hours check here. It used to read
+                # `urgent or not in_quiet_hours(now)`, which looks like "urgent
+                # CO2 wakes you up" but cannot be: the arbiter silences
+                # everything below SAFETY during quiet hours afterwards, so the
+                # expression only ever evaluated to plain True. Scenario
+                # co2_bedroom_night pins that behaviour deliberately - the
+                # decision belongs in one place, and that place is the arbiter.
             )
 
 

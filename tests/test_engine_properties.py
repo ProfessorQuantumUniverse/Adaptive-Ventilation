@@ -390,10 +390,69 @@ def test_snooze_and_ignore_silence_a_recommendation() -> None:
     assert evaluate(state, memory).for_window("w1").notify is False  # type: ignore[union-attr]
 
 
-def test_manual_hold_gives_in_after_two_contradictions() -> None:
-    """The user leaves the window open twice - stop nagging for today."""
+def test_quiet_hours_follow_the_household_clock_not_utc() -> None:
+    """22:00-07:00 means 22:00-07:00 where the user lives.
+
+    Every timestamp in the engine is UTC. Comparing it straight against the
+    wall-clock quiet hours shifted the silent window by the UTC offset, so in
+    central European summer nothing but SAFETY got through until 09:00 local -
+    which is the whole morning-close window.
+    """
+    prefs = Preferences(
+        quiet_hours_start=time(22, 0), quiet_hours_end=time(7, 0), timezone="Europe/Berlin"
+    )
+    # 06:30 UTC is 08:30 in Berlin: awake, and past the crossover.
+    assert not prefs.in_quiet_hours(datetime(2025, 7, 15, 6, 30, tzinfo=UTC))
+    # 21:00 UTC is 23:00 in Berlin: asleep, even though 21:00 is not quiet.
+    assert prefs.in_quiet_hours(datetime(2025, 7, 15, 21, 0, tzinfo=UTC))
+    # No timezone configured falls back to the old behaviour rather than raising.
+    assert Preferences().in_quiet_hours(datetime(2025, 7, 15, 6, 30, tzinfo=UTC))
+
+
+def test_a_window_without_a_contact_sensor_is_never_read_as_a_contradiction() -> None:
+    """Only a contact sensor can say the user disagreed.
+
+    Without one ``is_open`` is a guess, and reading it as an answer put a
+    manual hold on the window two cooldowns into any open recommendation -
+    silently dropping that window for the rest of the day, every day.
+    """
     memory = EngineMemory()
-    hot = _world(
+    cool = _world(outdoor=OutdoorState.create(14.0, 55.0))
+    rec = cool.windows[0]
+    assert not rec.contact_known  # no contact sensor configured
+
+    tracked = memory.target("w1")
+    for offset in (60, 130):
+        tracked.last_notified = cool.now + timedelta(minutes=offset - 61)
+        evaluate(cool.with_overrides(now=cool.now + timedelta(minutes=offset)), memory)
+
+    assert not memory.is_held("w1", cool.now)
+    final = evaluate(cool.with_overrides(now=cool.now + timedelta(minutes=200)), memory)
+    assert final.for_window("w1").action in OPENING_ACTIONS  # type: ignore[union-attr]
+
+
+def test_the_morning_close_clears_the_push_threshold_with_a_single_sensor() -> None:
+    """A one-sensor flat used to sit at 0.6 confidence, just under the 0.7 gate."""
+    warm = _world(
+        outdoor=OutdoorState.create(19.0, 60.0),
+        rooms=(
+            RoomState.create("living_room", "Living room", 24.0, 50.0, volume_m3=60.0, priority=1),
+        ),
+        forecast=tuple(
+            ForecastHour(
+                time=NOW + timedelta(hours=i),
+                temperature=19.0 + i * 1.5,
+                humidity=60.0,
+            )
+            for i in range(30)
+        ),
+    )
+    result = evaluate(warm, EngineMemory())
+    assert result.tipping_points.morning_confidence >= warm.preferences.min_confidence_for_push
+
+
+def _hot_world_with_open_window(**window_overrides: object) -> WorldState:
+    return _world(
         outdoor=OutdoorState.create(32.0, 35.0),
         windows=(
             WindowState(
@@ -403,7 +462,9 @@ def test_manual_hold_gives_in_after_two_contradictions() -> None:
                 azimuth=190.0,
                 area_m2=2.2,
                 is_open=True,
+                contact_known=True,
                 open_since=NOW - timedelta(minutes=30),
+                **window_overrides,  # type: ignore[arg-type]
             ),
         ),
         forecast=tuple(
@@ -411,20 +472,92 @@ def test_manual_hold_gives_in_after_two_contradictions() -> None:
             for i in range(30)
         ),
     )
+
+
+def test_manual_hold_gives_in_after_two_contradictions() -> None:
+    """The user re-opens the window twice after we said close - stop nagging."""
+    memory = EngineMemory()
+    hot = _hot_world_with_open_window()
     result = evaluate(hot, memory)
     rec = result.for_window("w1")
     assert rec is not None and rec.action is Action.CLOSE
 
-    # Simulate two ignored pushes, an hour apart each.
+    # Two pushes, and after each one the user goes and opens the window again -
+    # the contact sensor reports a change *after* the advice went out.
     tracked = memory.target("w1")
     for offset in (60, 130):
-        tracked.last_notified = hot.now + timedelta(minutes=offset - 61)
-        evaluate(hot.with_overrides(now=hot.now + timedelta(minutes=offset)), memory)
+        advised_at = hot.now + timedelta(minutes=offset - 61)
+        tracked.last_notified = advised_at
+        moment = hot.now + timedelta(minutes=offset)
+        reopened = hot.with_overrides(now=moment)
+        object.__setattr__(
+            reopened.windows[0], "contact_changed", advised_at + timedelta(minutes=5)
+        )
+        evaluate(reopened, memory)
 
     assert memory.is_held("w1", hot.now)
     final = evaluate(hot.with_overrides(now=hot.now + timedelta(minutes=200)), memory)
     rec = final.for_window("w1")
     assert rec is None or rec.action is Action.NO_ACTION
+
+
+def test_a_held_window_says_so_instead_of_nothing_to_do() -> None:
+    """The silence has to explain itself on the screen the user actually looks at."""
+    memory = EngineMemory()
+    cool = _world(outdoor=OutdoorState.create(14.0, 55.0))
+    memory.hold("w1", cool.now)
+
+    rec = evaluate(cool, memory).for_window("w1")
+    assert rec is not None and rec.action is Action.NO_ACTION
+    assert rec.reason_key == "idle_held"
+
+
+def test_today_follows_the_household_clock() -> None:
+    """Ignoring something at 23:00 must not expire two hours later.
+
+    The engine runs on UTC, so a bare ``now.date()`` rolled the push budget,
+    the manual hold and "ignore today" over at 02:00 local in CEST.
+    """
+    memory = EngineMemory(timezone="Europe/Berlin")
+    late = datetime(2025, 7, 15, 21, 30, tzinfo=UTC)  # 23:30 in Berlin
+    past_utc_midnight = datetime(2025, 7, 15, 22, 30, tzinfo=UTC)  # 00:30 in Berlin
+
+    memory.ignore_today("rec", late)
+    memory.hold("w1", late)
+    assert memory.day_of(late) == "2025-07-15"
+
+    # Still the same evening on the wall clock, even though UTC has ticked over.
+    assert memory.day_of(past_utc_midnight) == "2025-07-16"
+    assert not memory.is_ignored_today("rec", past_utc_midnight)
+    assert memory.is_ignored_today("rec", late)
+    assert memory.is_held("w1", late)
+
+    # Without a timezone the old UTC behaviour is kept rather than guessed at.
+    assert EngineMemory().day_of(late) == "2025-07-15"
+
+
+def test_not_reacting_to_a_push_is_not_a_contradiction() -> None:
+    """Being asleep must not mute a window for the rest of the day.
+
+    The regression that made this integration go quiet: a window that simply
+    stayed as it was counted as the user disagreeing, twice per cooldown, from
+    the first push onwards - and ``last_notified`` is never cleared, so it
+    re-armed forever. Covers were immune (their actions are in neither action
+    set), which is why shutter advice was the only thing that still arrived.
+    """
+    memory = EngineMemory()
+    hot = _hot_world_with_open_window(contact_changed=NOW - timedelta(hours=6))
+    assert evaluate(hot, memory).for_window("w1").action is Action.CLOSE  # type: ignore[union-attr]
+
+    tracked = memory.target("w1")
+    for offset in (60, 130, 200, 270):
+        tracked.last_notified = hot.now + timedelta(minutes=offset - 61)
+        evaluate(hot.with_overrides(now=hot.now + timedelta(minutes=offset)), memory)
+
+    assert not memory.is_held("w1", hot.now)
+    assert memory.target("w1").contradictions == 0
+    late = evaluate(hot.with_overrides(now=hot.now + timedelta(minutes=300)), memory)
+    assert late.for_window("w1").action is Action.CLOSE  # type: ignore[union-attr]
 
 
 # --------------------------------------------------------------------------
